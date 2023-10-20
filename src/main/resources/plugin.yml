@@ -1,0 +1,6 @@
+name: QuickMC-Paper
+version: '${project.version}'
+main: com.pro4d.quickmc.QuickMC
+api-version: '1.19'
+load: STARTUP
+authors: [Pro4D]
