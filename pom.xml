@@ -6,7 +6,7 @@
 
     <groupId>com.pro4d</groupId>
     <artifactId>quickmc-paper</artifactId>
-    <version>1.0-BETA</version>
+    <version>1.5-BETA</version>
     <packaging>jar</packaging>
 
     <name>QuickMC-Paper</name>
