@@ -1,24 +1,22 @@
 package com.pro4d.quickmc.events;
 
+import com.pro4d.quickmc.attributes.AppliedAttribute;
 import lombok.Getter;
-import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 @Getter
-public class QuickItemVoidEvent extends Event {
+public class AttributeRemoveEvent extends Event {
     private static final HandlerList HANDLERS = new HandlerList();
 
-    private final Entity sourceEntity;
-    private final ItemStack dropped;
-    private final Event event;
+    private final LivingEntity target;
+    private final AppliedAttribute appliedAttribute;
 
-    public QuickItemVoidEvent(Entity entity, ItemStack beingDropped, Event event) {
-        this.sourceEntity = entity;
-        this.dropped = beingDropped;
-        this.event = event;
+    public AttributeRemoveEvent(LivingEntity entity, AppliedAttribute applied) {
+        this.target = entity;
+        this.appliedAttribute = applied;
     }
 
     public static HandlerList getHandlerList() {

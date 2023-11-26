@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 /**
  * Simple {@link ItemStack} builder
  *
- * Original Author - MrMicky
+ * Original Author - Aglerr & MrMicky
  * Modified By - Pro4D
  */
 public class ItemBuilder {
@@ -189,6 +189,7 @@ public class ItemBuilder {
         return this;
     }
 
+    // TODO replace below 3 skull methods with PlayerProfile API
     public ItemBuilder skull(String identifier){
         SkullUtils.applySkin(this.meta, identifier);
         return this;

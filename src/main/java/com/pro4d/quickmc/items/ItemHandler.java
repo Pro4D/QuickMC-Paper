@@ -44,9 +44,7 @@ public class ItemHandler {
         return builder.build();
     }
 
-//    // TOD add path
-//    public static ItemStack createItemFromFile(String path) {
-
-//    }
+//    // TODO implement
+//    public static ItemStack createItemFromFile(String path) {}
 
 }

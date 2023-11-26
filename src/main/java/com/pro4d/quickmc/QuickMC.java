@@ -2,11 +2,9 @@ package com.pro4d.quickmc;
 
 import com.pro4d.quickmc.damage.ArmorTypes;
 import com.pro4d.quickmc.damage.DamageManager;
-import com.pro4d.quickmc.potions.PotionManager;
 import fr.skytasul.glowingentities.GlowingBlocks;
 import fr.skytasul.glowingentities.GlowingEntities;
 import lombok.Getter;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -25,13 +23,10 @@ public final class QuickMC {
     @Getter private static GlowingEntities glowingEntities;
     @Getter private static GlowingBlocks glowingBlocks;
 
-    @Getter private static LegacyComponentSerializer componentSerializer;
     @Getter private static JavaPlugin sourcePlugin;
     public static boolean PAPI_LOADED;
 
     public static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
-
-    @Getter private static PotionManager potionManager;
 
     public static void init(JavaPlugin plugin) {
         Objects.requireNonNull(plugin, "plugin");
@@ -43,19 +38,13 @@ public final class QuickMC {
         glowingEntities = new GlowingEntities(plugin);
         glowingBlocks = new GlowingBlocks(plugin);
 
-        componentSerializer = LegacyComponentSerializer.legacySection().toBuilder()
-                .hexColors().build();
-
-
-        potionManager = new PotionManager();
-
         createKeys(plugin);
         Bukkit.getPluginManager().registerEvents(new QuickListeners(plugin), plugin);
         Bukkit.getPluginManager().registerEvents(new DamageManager(), plugin);
     }
 
 
-    public static void setMetaHelmet(ArmorTypes[] types) {
+    public static void setMetaArmor(ArmorTypes[] types) {
         DamageManager.HELMET = types.length > 0 ? types[0] : ArmorTypes.NAKED;
         if(DamageManager.HELMET == null) DamageManager.HELMET = ArmorTypes.NAKED;
 

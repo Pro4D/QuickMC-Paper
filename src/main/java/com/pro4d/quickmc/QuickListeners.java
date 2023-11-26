@@ -2,6 +2,7 @@ package com.pro4d.quickmc;
 
 import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent;
 import com.pro4d.quickmc.events.QuickItemVoidEvent;
+import lombok.Getter;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -30,8 +31,8 @@ import static com.pro4d.quickmc.QuickMC.REGISTERED;
 
 public class QuickListeners implements Listener {
 
-    private final Set<Player> shouldUpdateInventory;
-    private final Set<UUID> playerSet;
+    @Getter private static Set<Player> shouldUpdateInventory;
+    @Getter private static Set<UUID> playerSet;
 
     private final JavaPlugin plugin;
     public QuickListeners(JavaPlugin instance) {
@@ -77,9 +78,13 @@ public class QuickListeners implements Listener {
         shouldUpdateInventory.add(player);
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler
     private void cancelInteract(PlayerInteractEvent event) {
-        if(playerSet.contains(event.getPlayer().getUniqueId())) event.setCancelled(true);
+        UUID uuid = event.getPlayer().getUniqueId();
+        if(playerSet.contains(uuid)) {
+            event.setCancelled(true);
+            playerSet.remove(uuid);
+        }
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -118,7 +123,7 @@ public class QuickListeners implements Listener {
         if(preventDestroy(item.getItemStack())) event.setCancelled(true);
     }
 
-    
+
 
     @EventHandler(priority = EventPriority.LOWEST)
     private void callVoidEvent(EntityRemoveFromWorldEvent event) {
@@ -126,23 +131,22 @@ public class QuickListeners implements Listener {
         if(entity instanceof InventoryHolder holder) {
             getAllNoVoidItems(holder.getInventory()).forEach(i ->
                     Bukkit.getServer().getPluginManager().
-                            callEvent(new QuickItemVoidEvent(entity, i)));
+                            callEvent(new QuickItemVoidEvent(entity, i, event)));
 
 
         } else if(entity instanceof Item item) {
             ItemStack itemStack = item.getItemStack();
             if(preventVoid(itemStack)) {
-                QuickItemVoidEvent voidEvent = new QuickItemVoidEvent(entity, itemStack);
+                QuickItemVoidEvent voidEvent = new QuickItemVoidEvent(entity, itemStack, event);
                 Bukkit.getServer().getPluginManager().callEvent(voidEvent);
             }
 
             if(itemStack.getType() != Material.SHULKER_BOX) return;
-            BlockStateMeta bsm = (BlockStateMeta) itemStack.getItemMeta();
-            if(!(bsm instanceof ShulkerBox shulker)) return;
+            if(!(itemStack.getItemMeta() instanceof BlockStateMeta bsm)) return;
+            if(!(bsm.getBlockState() instanceof ShulkerBox shulker)) return;
 
-            getAllNoVoidItems(shulker.getInventory()).forEach(i ->
-                    Bukkit.getServer().getPluginManager().
-                            callEvent(new QuickItemVoidEvent(entity, i)));
+            getAllNoVoidItems(shulker.getInventory()).forEach(i -> Bukkit.getServer().getPluginManager().
+                    callEvent(new QuickItemVoidEvent(entity, i, event)));
         }
     }
 
@@ -151,7 +155,7 @@ public class QuickListeners implements Listener {
         Player player = event.getPlayer();
         getAllNoVoidItems(player.getInventory()).forEach(i ->
                 Bukkit.getServer().getPluginManager().
-                        callEvent(new QuickItemVoidEvent(player, i)));
+                        callEvent(new QuickItemVoidEvent(player, i, event)));
     }
 
 

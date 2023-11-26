@@ -6,7 +6,7 @@
 
     <groupId>com.pro4d</groupId>
     <artifactId>quickmc-paper</artifactId>
-    <version>1.6-BETA</version>
+    <version>1.8-BETA</version>
     <packaging>jar</packaging>
 
     <name>QuickMC-Paper</name>
@@ -41,6 +41,14 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.3.0</version>
                 <configuration>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/*.MF</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
                     <relocations>
                         <relocation>
                             <pattern>de.themoep.minedown</pattern>
@@ -50,10 +58,18 @@
                             <pattern>com.cryptomorin.xseries</pattern>
                             <shadedPattern>com.pro4d.quickmc.xseries</shadedPattern>
                         </relocation>
-<!--                        <relocation>-->
-<!--                            <pattern>org.apache.commons.lang3</pattern>-->
-<!--                            <shadedPattern>me.aglerr.mclibs.apache3</shadedPattern>-->
-<!--                        </relocation>-->
+                        <relocation>
+                            <pattern>dev.dejvokep.boostedyaml</pattern>
+                            <shadedPattern>com.pro4d.quickmc.libs</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.apache.commons.lang3</pattern>
+                            <shadedPattern>com.pro4d.quickmc.apache3</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>de.themoep.minedown</pattern>
+                            <shadedPattern>com.pro4d.quickmc.minedown</shadedPattern>
+                        </relocation>
                     </relocations>
                 </configuration>
                 <executions>
@@ -115,14 +131,16 @@
             <scope>compile</scope>
         </dependency>
 <!--        // TODO implement   -->
-        <dependency>
-            <groupId>io.github.skytasul</groupId>
-            <artifactId>guardianbeam</artifactId>
-            <version>2.3.3</version>
-            <scope>compile</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.github.skytasul</groupId>-->
+<!--            <artifactId>guardianbeam</artifactId>-->
+<!--            <version>2.3.3</version>-->
+<!--            <scope>compile</scope>-->
+<!--        </dependency>-->
 
-
+<!--
+// TODO- Remove the below dependency after transitioning the ItemBuilder
+// TODO- skull() methods to use the Spigot PlayerProfile API-->
         <dependency>
             <groupId>com.github.cryptomorin</groupId>
             <artifactId>XSeries</artifactId>
@@ -135,19 +153,23 @@
             <version>2.11.2</version>
             <scope>provided</scope>
         </dependency>
-
-<!--        <dependency>-->
-<!--            <groupId>de.themoep</groupId>-->
-<!--            <artifactId>minedown</artifactId>-->
-<!--            <version>1.7.1-SNAPSHOT</version>-->
-<!--            <scope>compile</scope>-->
-<!--        </dependency>-->
-
+        <dependency>
+            <groupId>de.themoep</groupId>
+            <artifactId>minedown</artifactId>
+            <version>1.7.1-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.26</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>dev.dejvokep</groupId>
+            <artifactId>boosted-yaml</artifactId>
+            <version>1.3.1</version>
+        </dependency>
     </dependencies>
+
 </project>
