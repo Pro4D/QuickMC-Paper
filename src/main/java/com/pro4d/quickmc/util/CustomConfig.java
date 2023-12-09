@@ -8,6 +8,7 @@ import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
 import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
 import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import lombok.Getter;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
@@ -24,17 +25,16 @@ public class CustomConfig {
         if(!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdirs();
         this.configName = name + ".yml";
 
-        String dirName = directory == null ? "" : directory;
-        String path = File.separator + dirName + File.separator + configName;
-        File file = new File(plugin.getDataFolder() + File.separator + dirName, configName);
+        String dirName = directory == null ? "" : File.separator + directory + File.separator;
+        File file = new File(plugin.getDataFolder() + dirName, configName);
 
+        String path = directory == null ?  configName : directory + File.separator + configName;
         try {
             UpdaterSettings.Builder builder = UpdaterSettings.builder();
             builder.setOptionSorting(UpdaterSettings.OptionSorting.SORT_BY_DEFAULTS);
-            if(versioning != null &&
-                    !versioning.isEmpty()) builder.setVersioning(new BasicVersioning(versioning));
+            if(versioning != null && !versioning.isEmpty()) builder.setVersioning(new BasicVersioning(versioning));
 
-            document = YamlDocument.create(file, getClass().getResourceAsStream(path),
+            document = YamlDocument.create(file, plugin.getResource(path),
                     GeneralSettings.builder().setKeyFormat(GeneralSettings.KeyFormat.OBJECT).build(),
                     LoaderSettings.builder().setAutoUpdate(true).build(),
                     DumperSettings.DEFAULT, builder.build());
@@ -57,7 +57,7 @@ public class CustomConfig {
             document.update();
 
         } catch (IOException e) {
-            QuickMC.getSourcePlugin().logger.severe("Failed to save the config: " + configName);
+            Bukkit.getLogger().severe("Failed to save the config: " + configName);
         }
     }
 
@@ -65,10 +65,9 @@ public class CustomConfig {
         try {
             document.reload();
             document.update();
-//            document.save();
 
         } catch (IOException e) {
-            QuickMC.getSourcePlugin().logger.severe("Failed to reload the config: " + configName);
+            Bukkit.getLogger().severe("Failed to reload the config: " + configName);
         }
     }
 
