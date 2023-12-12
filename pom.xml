@@ -66,6 +66,10 @@
                             <pattern>de.themoep.minedown</pattern>
                             <shadedPattern>com.pro4d.quickmc.minedown</shadedPattern>
                         </relocation>
+                        <relocation>
+                            <pattern>dev.dejvokep.boostedyaml</pattern>
+                            <shadedPattern>com.pro4d.quickmc.boostedyaml</shadedPattern>
+                        </relocation>
                     </relocations>
                 </configuration>
                 <executions>

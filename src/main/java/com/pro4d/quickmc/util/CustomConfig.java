@@ -17,6 +17,7 @@ import java.io.IOException;
 @Getter
 public class CustomConfig {
 
+    private final File file;
     private final String configName;
     private YamlDocument document;
 
@@ -26,21 +27,23 @@ public class CustomConfig {
         this.configName = name + ".yml";
 
         String dirName = directory == null ? "" : File.separator + directory + File.separator;
-        File file = new File(plugin.getDataFolder() + dirName, configName);
+        this.file = new File(plugin.getDataFolder() + dirName, configName);
 
         String path = directory == null ?  configName : directory + File.separator + configName;
         try {
-            UpdaterSettings.Builder builder = UpdaterSettings.builder();
-            builder.setOptionSorting(UpdaterSettings.OptionSorting.SORT_BY_DEFAULTS);
-            if(versioning != null && !versioning.isEmpty()) builder.setVersioning(new BasicVersioning(versioning));
+
+            UpdaterSettings.Builder updaterBuilder = UpdaterSettings.builder();
+            updaterBuilder.setAutoSave(false);
+            if(versioning != null && !versioning.isEmpty()) {
+                updaterBuilder.setVersioning(new BasicVersioning(versioning));
+            }
 
             document = YamlDocument.create(file, plugin.getResource(path),
-                    GeneralSettings.builder().setKeyFormat(GeneralSettings.KeyFormat.OBJECT).build(),
-                    LoaderSettings.builder().setAutoUpdate(true).build(),
-                    DumperSettings.DEFAULT, builder.build());
-
-            document.update();
-            document.save();
+                    GeneralSettings.builder()
+                            .setKeyFormat(GeneralSettings.KeyFormat.STRING)
+                            .setUseDefaults(false)
+                            .build(),
+                    LoaderSettings.DEFAULT, DumperSettings.DEFAULT, updaterBuilder.build());
 
         } catch (IOException e) {
             QuickMC.getSourcePlugin().logger.severe("Failed to load/create: " + configName);
@@ -54,7 +57,6 @@ public class CustomConfig {
     public void saveConfig() {
         try {
             document.save();
-            document.update();
 
         } catch (IOException e) {
             Bukkit.getLogger().severe("Failed to save the config: " + configName);
@@ -64,7 +66,6 @@ public class CustomConfig {
     public void reloadConfig() {
         try {
             document.reload();
-            document.update();
 
         } catch (IOException e) {
             Bukkit.getLogger().severe("Failed to reload the config: " + configName);

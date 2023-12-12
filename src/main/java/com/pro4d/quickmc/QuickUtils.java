@@ -7,6 +7,7 @@ import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
@@ -22,6 +23,7 @@ import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.NumberFormat;
 import java.util.*;
 
 public final class QuickUtils {
@@ -268,6 +270,33 @@ public final class QuickUtils {
         return translatedLore;
     }
 
+    public static Location stringToLocation(String s) {
+        String[] parts = s.split(",");
+        return new Location(Bukkit.getWorld(parts[0]),
+                format(stringToDouble(parts[1])),
+                format(stringToDouble(parts[2])),
+                format(stringToDouble(parts[3]))
+        );
+    }
+
+    public static String locationToString(Location loc) {
+        return loc.getWorld().getName() + ", "
+                + loc.getX() + ", "
+                + loc.getY() + ", "
+                + loc.getZ();
+
+    }
+
+    public static double stringToDouble(String s) {
+        return Double.parseDouble(s);
+    }
+
+    public static double format(double d) {
+        NumberFormat nf = NumberFormat.getInstance();
+        nf.setMaximumFractionDigits(2);
+
+        return Double.parseDouble(nf.format(d));
+    }
 
     // TODO implement
     public static void sendTitle(Player player, String title, String subtitle, double in, double out, double stay) {
