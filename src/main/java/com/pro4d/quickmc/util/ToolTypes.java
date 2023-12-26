@@ -7,6 +7,9 @@ import java.util.EnumSet;
 
 public enum ToolTypes {
 
+    SWORDS(EnumSet.of(Material.WOODEN_SWORD, Material.STONE_SWORD, Material.IRON_SWORD, Material.GOLDEN_SWORD,
+            Material.DIAMOND_SWORD, Material.NETHERITE_SWORD)),
+
     PICKAXES(EnumSet.of(Material.WOODEN_PICKAXE, Material.STONE_PICKAXE, Material.IRON_PICKAXE, Material.GOLDEN_PICKAXE,
             Material.DIAMOND_PICKAXE, Material.NETHERITE_PICKAXE)),
 

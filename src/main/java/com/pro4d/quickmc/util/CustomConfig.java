@@ -21,8 +21,7 @@ public class CustomConfig {
     private final String configName;
     private YamlDocument document;
 
-    public CustomConfig(String name, String directory, String versioning) {
-        Plugin plugin = QuickMC.getSourcePlugin();
+    public CustomConfig(Plugin plugin, String name, String directory, String versioning) {
         if(!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdirs();
         this.configName = name + ".yml";
 
@@ -50,8 +49,8 @@ public class CustomConfig {
         }
     }
 
-    public CustomConfig(String name, String directory) {
-        this(name, directory, "");
+    public CustomConfig(Plugin plugin, String name, String directory) {
+        this(plugin, name, directory, "");
     }
 
     public void saveConfig() {
