@@ -1,5 +1,7 @@
 package com.pro4d.quickmc.util;//package your.package.here;
 
+import org.bukkit.entity.Player;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
@@ -7,9 +9,6 @@ import java.net.URLConnection;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-//Uncomment this if you want the helper method for Bukkit/Spigot;
-import org.bukkit.entity.Player;
 
 
 /**

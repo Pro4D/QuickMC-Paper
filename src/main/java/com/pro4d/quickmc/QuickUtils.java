@@ -3,12 +3,15 @@ package com.pro4d.quickmc;
 import com.cryptomorin.xseries.messages.ActionBar;
 import de.themoep.minedown.MineDown;
 import me.clip.placeholderapi.PlaceholderAPI;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -27,6 +30,9 @@ import java.text.NumberFormat;
 import java.util.*;
 
 public final class QuickUtils {
+
+    public static LegacyComponentSerializer SERIALIZER = LegacyComponentSerializer.legacyAmpersand().toBuilder()
+            .hexColors().build();
 
     public static final List<PotionEffectType> GOOD_POTIONS = Arrays.asList(PotionEffectType.SPEED,
             PotionEffectType.FAST_DIGGING, PotionEffectType.INCREASE_DAMAGE,
@@ -250,6 +256,13 @@ public final class QuickUtils {
         return String.format("&#%06x&", rgb);
     }
 
+    public static Enchantment enchantmentFromEnglishToMinecraft(String english) {
+        for(Enchantment enchant : Enchantment.values()) {
+            String name = enchant.getKey().getKey();
+            if(name.equalsIgnoreCase(english) || name.replace("_", "").equalsIgnoreCase(english)) return enchant;
+        }
+        return null;
+    }
 
 
     public static String color(String msg) {
@@ -259,6 +272,10 @@ public final class QuickUtils {
         List<String> translatedLore = new ArrayList<>();
         lore.forEach(l -> translatedLore.add(color(l)));
         return translatedLore;
+    }
+
+    public static Component fromLegacyText(String msg) {
+        return SERIALIZER.deserialize(msg);
     }
 
     public static BaseComponent[] component(String msg) {

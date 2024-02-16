@@ -57,7 +57,7 @@ public class AppliedAttribute {
 
         CustomConfig cConfig = getOptions().getConfig();
         String path = getOptions().getPath() + target.getUniqueId() + "." + attribute.getKey().getKey();
-        cConfig.getDocument().set(path + getModifier().getName(), time);
+        cConfig.getYmlConfig().set(path + getModifier().getName(), time);
         cConfig.saveConfig();
     }
 

@@ -50,6 +50,7 @@ public class DamageManager implements Listener {
     **/
     public static void damageEntity(LivingEntity target, Entity source, double hearts) {
         if(target.isDead()) return;
+        if(target.getNoDamageTicks() != 0) return;
         getCustomDamage().put(target.getUniqueId(), hearts * 2);
         if(source == null) {
             target.damage(hearts * 2);

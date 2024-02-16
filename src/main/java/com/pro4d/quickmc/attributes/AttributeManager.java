@@ -37,7 +37,7 @@ public class AttributeManager {
         if(options == null || !delete) return;
         CustomConfig config = options.getConfig();
         String path = options.getPath() + target.getUniqueId();
-        config.getDocument().set(path + applying.getModifier().getName(), null);
+        config.getYmlConfig().set(path + applying.getModifier().getName(), null);
         config.saveConfig();
     }
 
