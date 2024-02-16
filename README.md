@@ -27,7 +27,7 @@ Then, adding the actual dependency itself.
     <dependency>
         <groupId>com.github.pro4d</groupId>
         <artifactId>QuickMC-Paper</artifactId>
-        <version>Beta-1.5</version>
+        <version>Beta-1.6</version>
     </dependency>
 </dependencies>
 ```
