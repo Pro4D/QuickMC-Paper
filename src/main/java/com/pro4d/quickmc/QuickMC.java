@@ -2,6 +2,7 @@ package com.pro4d.quickmc;
 
 import com.pro4d.quickmc.damage.ArmorTypes;
 import com.pro4d.quickmc.damage.DamageManager;
+import com.pro4d.quickmc.util.PlayerBorderManager;
 import fr.skytasul.glowingentities.GlowingBlocks;
 import fr.skytasul.glowingentities.GlowingEntities;
 import lombok.Getter;
@@ -13,7 +14,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class QuickMC {
 
@@ -22,21 +22,24 @@ public final class QuickMC {
 
     @Getter private static GlowingEntities glowingEntities;
     @Getter private static GlowingBlocks glowingBlocks;
+    @Getter private static PlayerBorderManager playerBorderManager;
 
     @Getter private static JavaPlugin sourcePlugin;
     public static boolean PAPI_LOADED;
 
-    public static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
+    //public static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
 
     public static void init(JavaPlugin plugin) {
         Objects.requireNonNull(plugin, "plugin");
         sourcePlugin = plugin;
-        if(REGISTERED.getAndSet(true)) throw new IllegalStateException("QuickLib is already registered");
+
+        //if(REGISTERED.getAndSet(true)) throw new IllegalStateException("QuickLib is already registered");
 
         PAPI_LOADED = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
 
         glowingEntities = new GlowingEntities(plugin);
         glowingBlocks = new GlowingBlocks(plugin);
+        playerBorderManager = new PlayerBorderManager(plugin);
 
         createKeys(plugin);
         Bukkit.getPluginManager().registerEvents(new QuickListeners(plugin), plugin);

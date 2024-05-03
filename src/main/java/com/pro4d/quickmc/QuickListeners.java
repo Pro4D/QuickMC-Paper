@@ -1,11 +1,15 @@
 package com.pro4d.quickmc;
 
 import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent;
+import com.pro4d.quickmc.attributes.AttributeManager;
 import com.pro4d.quickmc.events.QuickItemVoidEvent;
+import de.tr7zw.changeme.nbtapi.NBTFile;
+import de.tr7zw.changeme.nbtapi.iface.ReadWriteNBT;
 import lombok.Getter;
-import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
@@ -17,17 +21,19 @@ import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.server.PluginDisableEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitScheduler;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
-
-import static com.pro4d.quickmc.QuickMC.REGISTERED;
+import java.util.concurrent.CompletableFuture;
 
 public class QuickListeners implements Listener {
 
@@ -39,6 +45,45 @@ public class QuickListeners implements Listener {
         this.plugin = instance;
         shouldUpdateInventory = new HashSet<>();
         playerSet = new HashSet<>();
+    }
+
+
+    @EventHandler
+    private void pullAttributesFromFile(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+
+        CompletableFuture<NBTFile> future = CompletableFuture.supplyAsync(() -> {
+            NBTFile nbtFile = null;
+            try {
+                String path = plugin.getServer().getWorldContainer().getPath();
+                path = path.substring(0, path.length() - 1);
+
+                String defWorld = plugin.getServer().getWorlds().get(0).getName();
+                File file = new File(path + defWorld + "/playerdata/" + player.getUniqueId() + ".dat");
+                if(file.exists()) nbtFile = new NBTFile(file);
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            return nbtFile;
+        });
+
+        BukkitScheduler scheduler = plugin.getServer().getScheduler();
+
+        future.thenAcceptAsync((nbtFile) -> {
+            if(nbtFile == null) return;
+
+            Set<Attribute> fileAttributes = AttributeManager.getAllAttributesFromFile(nbtFile);
+            for(Attribute attribute : fileAttributes) {
+                ReadWriteNBT nbt = AttributeManager.getNBT(nbtFile, attribute);
+                double value = nbt.getDouble("Base");
+                scheduler.runTask(plugin, () -> {
+                    AttributeInstance inst = player.getAttribute(attribute);
+                    if(inst != null) inst.setBaseValue(value);
+                });
+            }
+        });
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -130,7 +175,7 @@ public class QuickListeners implements Listener {
         Entity entity = event.getEntity();
         if(entity instanceof InventoryHolder holder) {
             getAllNoVoidItems(holder.getInventory()).forEach(i ->
-                    Bukkit.getServer().getPluginManager().
+                    QuickMC.getSourcePlugin().getServer().getPluginManager().
                             callEvent(new QuickItemVoidEvent(entity, i, event)));
 
 
@@ -138,14 +183,14 @@ public class QuickListeners implements Listener {
             ItemStack itemStack = item.getItemStack();
             if(preventVoid(itemStack)) {
                 QuickItemVoidEvent voidEvent = new QuickItemVoidEvent(entity, itemStack, event);
-                Bukkit.getServer().getPluginManager().callEvent(voidEvent);
+                QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(voidEvent);
             }
 
             if(itemStack.getType() != Material.SHULKER_BOX) return;
             if(!(itemStack.getItemMeta() instanceof BlockStateMeta bsm)) return;
             if(!(bsm.getBlockState() instanceof ShulkerBox shulker)) return;
 
-            getAllNoVoidItems(shulker.getInventory()).forEach(i -> Bukkit.getServer().getPluginManager().
+            getAllNoVoidItems(shulker.getInventory()).forEach(i -> QuickMC.getSourcePlugin().getServer().getPluginManager().
                     callEvent(new QuickItemVoidEvent(entity, i, event)));
         }
     }
@@ -154,10 +199,9 @@ public class QuickListeners implements Listener {
     private void playerFallInVoid(PlayerDeathEvent event) {
         Player player = event.getPlayer();
         getAllNoVoidItems(player.getInventory()).forEach(i ->
-                Bukkit.getServer().getPluginManager().
+                QuickMC.getSourcePlugin().getServer().getPluginManager().
                         callEvent(new QuickItemVoidEvent(player, i, event)));
     }
-
 
 
     private boolean preventRemoval(ItemStack item) {
@@ -216,12 +260,12 @@ public class QuickListeners implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onPluginDisable(PluginDisableEvent e) {
-        if(e.getPlugin() == this.plugin) {
-            REGISTERED.set(false);
-            QuickMC.getGlowingEntities().disable();
-        }
-    }
+//    @EventHandler(priority = EventPriority.LOWEST)
+//    public void onPluginDisable(PluginDisableEvent e) {
+//        if(e.getPlugin() == this.plugin) {
+//            REGISTERED.set(false);
+//            QuickMC.getGlowingEntities().disable();
+//        }
+//    }
 
 }

@@ -1,83 +1,195 @@
 package com.pro4d.quickmc.attributes;
 
+import com.pro4d.quickmc.QuickMC;
+import com.pro4d.quickmc.QuickUtils;
 import com.pro4d.quickmc.events.AttributeApplyEvent;
-import com.pro4d.quickmc.events.AttributeRemoveEvent;
-import com.pro4d.quickmc.util.CustomConfig;
-import org.bukkit.Bukkit;
+import de.tr7zw.changeme.nbtapi.NBTCompound;
+import de.tr7zw.changeme.nbtapi.NBTCompoundList;
+import de.tr7zw.changeme.nbtapi.NBTEntity;
+import de.tr7zw.changeme.nbtapi.NBTFile;
+import de.tr7zw.changeme.nbtapi.iface.ReadWriteNBT;
+import lombok.Getter;
+import org.bukkit.attribute.Attributable;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.io.File;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
+@Getter
 public class AttributeManager {
 
-    public static void addModifier(LivingEntity target, AppliedAttribute applying, int time) {
-        AttributeInstance instance = target.getAttribute(applying.getAttribute());
-        if(instance == null) return;
-        instance.addModifier(applying.getModifier());
+//    private final Map<UUID, Set<AttributeModifier>> entityModifiers;
+//    public AttributeManager() {
+//        entityModifiers = new HashMap<>();
+//    }
 
-        if(time != -1) applying.startTimer(target, time);
+    public static void setBukkitAttribute(LivingEntity target, Attribute attribute, double value) {
+        AttributeInstance instance = target.getAttribute(attribute);
+        assert instance != null;
+        instance.setBaseValue(value);
+    }
+    public static void setTimedBukkitAttribute(LivingEntity target, Attribute attribute, double value, double restore, long duration) {
+        AttributeInstance instance = target.getAttribute(attribute);
+        assert instance != null;
+        instance.setBaseValue(value);
 
-        Bukkit.getServer().getPluginManager().callEvent(new AttributeApplyEvent(target, applying, time));
-        if(applying.getOptions() != null) applying.saveStatsToConfig(target);
+        QuickUtils.syncLater(duration, () -> setBukkitAttribute(target, attribute, restore));
     }
 
-    public static void removeModifier(LivingEntity target, AppliedAttribute applying, boolean delete) {
-        AttributeInstance instance = target.getAttribute(applying.getAttribute());
-        if(instance == null) return;
-        instance.removeModifier(applying.getModifier());
+    public static void setAttribute(LivingEntity target, Attribute attribute, double value) {
+        AttributeApplyEvent event = new AttributeApplyEvent(target, attribute, value);
+        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
+        if(event.isCancelled()) return;
 
-        Bukkit.getServer().getPluginManager().callEvent(new AttributeRemoveEvent(target, applying));
+        attribute = event.getAttribute();
+        value = event.getValue();
 
-        AppliedAttribute.FileOptions options = applying.getOptions();
-        if(options == null || !delete) return;
-        CustomConfig config = options.getConfig();
-        String path = options.getPath() + target.getUniqueId();
-        config.getYmlConfig().set(path + applying.getModifier().getName(), null);
-        config.saveConfig();
+        NBTCompound compound = getCompound(target);
+        getNBT(compound, attribute).setDouble("Base", value);
+
+        AttributeInstance instance = target.getAttribute(attribute);
+        assert instance != null;
+        instance.setBaseValue(value);
+
+        if(!(compound instanceof NBTFile nbtFile)) return;
+        CompletableFuture.runAsync(() -> {
+            try {
+                nbtFile.save();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
+    public static void setTimedAttribute(LivingEntity target, Attribute attribute, double value, double restore, long duration) {
+        AttributeApplyEvent event = new AttributeApplyEvent(target, attribute, value);
+        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
+        if(event.isCancelled()) return;
 
-    public static boolean hasModifier(LivingEntity entity, Attribute attribute, AttributeModifier modifier) {
-        AttributeInstance instance = entity.getAttribute(attribute);
-        if(instance == null) return false;
-        for(AttributeModifier mod : instance.getModifiers()) {
-            if(mod.getName().equalsIgnoreCase(modifier.getName()) ||
-                    mod.getUniqueId().equals(modifier.getUniqueId())) return true;
+        attribute = event.getAttribute();
+        value = event.getValue();
+
+        NBTCompound compound = getCompound(target);
+        getNBT(compound, attribute).setDouble("Base", value);
+
+        AttributeInstance instance = target.getAttribute(attribute);
+        assert instance != null;
+        instance.setBaseValue(value);
+
+        if(compound instanceof NBTFile nbtFile) {
+            CompletableFuture.runAsync(() -> {
+                try {
+                    nbtFile.save();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
-        return false;
+        Attribute a = attribute;
+        QuickUtils.syncLater(duration, () -> setAttribute(target, a, restore));
     }
-    public static List<AttributeModifier> getAllModifiersFromAttribute(LivingEntity entity, Attribute attribute) {
-        List<AttributeModifier> modifiers = new ArrayList<>();
+
+//    public static void addAttributeModifier(LivingEntity target, Attribute attribute, String name, double value) {
+//        AttributeInstance instance = target.getAttribute(attribute);
+//        assert instance != null;
+//        instance.setBaseValue(value);
+//    }
+//    public static void addTimedAttributeModifier(LivingEntity target, Attribute attribute, String name, double value, double restore, long duration) {
+//        AttributeInstance instance = target.getAttribute(attribute);
+//        assert instance != null;
+//        instance.setBaseValue(value);
+//
+//        QuickUtils.syncLater(duration, () -> setBukkitAttribute(target, attribute, restore));
+//    }
+//    public static void removeAttributeModifier(LivingEntity target, Attribute attribute, String name) {
+//        AttributeInstance instance = target.getAttribute(attribute);
+//        assert instance != null;
+//        instance.setBaseValue(value);
+//
+//        QuickUtils.syncLater(duration, () -> setBukkitAttribute(target, attribute, restore));
+//    }
+
+    public static NBTCompound getCompound(LivingEntity entity) {
+        if(!(entity instanceof Player player)) {
+            return new NBTEntity(entity);
+        } else if(player.isOnline()) return new NBTEntity(entity);
+
+        NBTFile file;
+        try {
+            String path = entity.getServer().getWorldContainer().getPath();
+            path = path.substring(0, path.length() - 1);
+
+            String defWorld = entity.getServer().getWorlds().get(0).getName();
+            file = new NBTFile(new File(path + defWorld + "/playerdata/" + player.getUniqueId() + ".dat"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return file;
+    }
+
+    public static double getAttributeValue(LivingEntity entity, Attribute attribute) {
         AttributeInstance instance = entity.getAttribute(attribute);
-        if(instance == null) return modifiers;
-
-        modifiers.addAll(instance.getModifiers());
-        return modifiers;
+        return instance != null ? instance.getValue() : -1;
     }
 
+    public static double getDefaultValue(LivingEntity entity, Attribute attribute) {
+        Attributable defAttributes = entity.getType().getDefaultAttributes();
+        AttributeInstance instance = defAttributes.getAttribute(attribute);
+        return instance != null ? instance.getBaseValue() : -1;
+    }
+
+    public static Set<Attribute> getAllAttributesFromFile(NBTCompound compound) {
+        Set<Attribute> attributes = new HashSet<>();
+
+        NBTCompoundList attributeCompoundList = compound.getCompoundList("Attributes");
+        for(ReadWriteNBT lc : attributeCompoundList) {
+            Attribute a = getAttributeFromName(lc.getString("Name"));
+            if(a != null) attributes.add(a);
+        }
+        return attributes;
+    }
+
+    public static Attribute getAttributeFromName(String n) {
+        for(Attribute attribute : Attribute.values()) {
+            if(attribute.getKey().toString().equalsIgnoreCase(n)) return attribute;
+        }
+        return null;
+    }
+
+    public static ReadWriteNBT getNBT(NBTCompound compound, Attribute attribute) {
+        NBTCompoundList attributes = compound.getCompoundList("Attributes");
+        ReadWriteNBT nbt = null;
+        for(ReadWriteNBT lc : attributes) {
+            if(!lc.getString("Name").equals
+                    (attribute.getKey().getNamespace() + ":" + attribute.getKey().getKey())) {
+                continue;
+            }
+            nbt = lc;
+            break;
+        }
+        return nbt;
+    }
+
+    public static void resetAllAttributes(LivingEntity entity) {
+        for(Attribute attribute : Attribute.values()) {
+            AttributeManager.setAttribute(entity, attribute, AttributeManager.getDefaultValue(entity, attribute));
+        }
+    }
 
     public static void healEntity(LivingEntity entity, double amount) {
         double sum = entity.getHealth() + amount;
-        entity.setHealth(Math.min(sum, getEntityMaxHealth(entity, false, true)));
+        entity.setHealth(Math.min(sum, getEntityMaxHealth(entity)));
     }
 
-    /*
-    * Return an entity's maximum health.
-    * param def - return the default vanilla value, ignoring any modifications
-    * param modifiers - overrides def param, returns the value with all modifications
-    * */
-    public static double getEntityMaxHealth(LivingEntity entity, boolean def, boolean modifiers) {
-        AttributeInstance attribute = entity.getAttribute(Attribute.GENERIC_MAX_HEALTH);
-        if(attribute == null) return 0;
-
-        if(modifiers) return attribute.getValue();
-        return def ? Objects.requireNonNull(entity.getType().getDefaultAttributes().
-                getAttribute(Attribute.GENERIC_MAX_HEALTH)).getValue() : attribute.getBaseValue();
+    public static double getEntityMaxHealth(LivingEntity entity) {
+        AttributeInstance instance = entity.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        return instance != null ? instance.getBaseValue() : 0;
     }
 
 }

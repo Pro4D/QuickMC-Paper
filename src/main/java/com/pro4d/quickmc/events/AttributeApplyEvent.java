@@ -1,24 +1,30 @@
 package com.pro4d.quickmc.events;
 
-import com.pro4d.quickmc.attributes.AppliedAttribute;
 import lombok.Getter;
+import lombok.Setter;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 
 @Getter
-public class AttributeApplyEvent extends Event {
+@Setter
+public class AttributeApplyEvent extends Event implements Cancellable {
     private static final HandlerList HANDLERS = new HandlerList();
+    private boolean isCancelled;
 
     private final LivingEntity target;
-    private final AppliedAttribute appliedAttribute;
-    private final int time;
+    private Attribute attribute;
+    private double value;
 
-    public AttributeApplyEvent(LivingEntity entity, AppliedAttribute applied, int time) {
+    public AttributeApplyEvent(LivingEntity entity, Attribute attribute, double value) {
         this.target = entity;
-        this.appliedAttribute = applied;
-        this.time = time;
+        this.attribute = attribute;
+        this.value = value;
+
+        this.isCancelled = false;
     }
 
     public static HandlerList getHandlerList() {

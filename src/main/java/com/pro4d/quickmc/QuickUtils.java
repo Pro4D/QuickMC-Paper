@@ -5,6 +5,7 @@ import de.themoep.minedown.MineDown;
 import me.clip.placeholderapi.PlaceholderAPI;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.title.Title;
 import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.BanList;
 import org.bukkit.Bukkit;
@@ -27,7 +28,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.text.NumberFormat;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class QuickUtils {
 
@@ -57,7 +60,6 @@ public final class QuickUtils {
         return BAD_POTIONS.contains(type);
     }
 
-
     public static final Set<EntityType> HOSTILE_MOBS = EnumSet.of(EntityType.EVOKER, EntityType.EVOKER_FANGS,
             EntityType.VINDICATOR, EntityType.PILLAGER, EntityType.RAVAGER, EntityType.VEX, EntityType.ENDERMITE,
             EntityType.GUARDIAN, EntityType.ELDER_GUARDIAN, EntityType.SHULKER, EntityType.HUSK, EntityType.STRAY,
@@ -83,7 +85,8 @@ public final class QuickUtils {
 
 
     public static int randomInteger(int min, int max) {
-        return (int)Math.floor(Math.random()*(max-min+1) + min);
+        return ThreadLocalRandom.current().nextInt(min, max + 1);
+//        return (int)Math.floor(Math.random()*(max-min+1) + min);
     }
     public static boolean isInt(String s) {
         try {
@@ -95,7 +98,8 @@ public final class QuickUtils {
     }
 
     public static double randomDouble(double min, double max) {
-        return Math.random() * (max - min) + min;
+        return ThreadLocalRandom.current().nextDouble(min, max + 1);
+//        return Math.random() * (max - min) + min;
     }
     public static boolean isDouble(String s) {
         try {
@@ -315,9 +319,8 @@ public final class QuickUtils {
         return Double.parseDouble(nf.format(d));
     }
 
-    // TODO implement
-    public static void sendTitle(Player player, String title, String subtitle, double in, double out, double stay) {
-//        player.showTitle(Title.title());
+    public static void sendTitle(Player player, String title, String subtitle, Duration in, Duration out, Duration stay) {
+        player.showTitle(Title.title(fromLegacyText(title), fromLegacyText(subtitle), Title.Times.times(in, stay, out)));
     }
 
     public static void sendActionBar(Player player, String message) {

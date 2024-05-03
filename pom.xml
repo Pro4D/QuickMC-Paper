@@ -6,7 +6,7 @@
 
     <groupId>com.pro4d</groupId>
     <artifactId>quickmc-paper</artifactId>
-    <version>1.11-BETA</version>
+    <version>1.13.4-BETA</version>
     <packaging>jar</packaging>
 
     <name>QuickMC-Paper</name>
@@ -45,7 +45,10 @@
                         <filter>
                             <artifact>*:*</artifact>
                             <excludes>
-                                <exclude>META-INF/*.MF</exclude>
+                                <exclude>META-INF/maven/</exclude>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
                             </excludes>
                         </filter>
                     </filters>
@@ -59,12 +62,20 @@
                             <shadedPattern>com.pro4d.quickmc.xseries</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>org.apache.commons.lang3</pattern>
-                            <shadedPattern>com.pro4d.quickmc.apache3</shadedPattern>
+                            <pattern>org.apache.commons.text</pattern>
+                            <shadedPattern>com.pro4d.quickmc.text</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>de.themoep.minedown</pattern>
                             <shadedPattern>com.pro4d.quickmc.minedown</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>de.tr7zw.changeme.nbtapi</pattern>
+                            <shadedPattern>com.pro4d.quickmc.nbtapi</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.github.yannicklamprecht</pattern>
+                            <shadedPattern>com.pro4d.quickmc.worldborderapi</shadedPattern>
                         </relocation>
                     </relocations>
                 </configuration>
@@ -137,6 +148,19 @@
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
+        <repository>
+            <id>maven-central</id>
+            <url>https://oss.sonatype.org/content/groups/public</url>
+        </repository>
+        <repository>
+            <id>codemc-repo</id>
+            <url>https://repo.codemc.org/repository/maven-public/</url>
+            <layout>default</layout>
+        </repository>
+        <repository>
+            <id>eldonexus</id>
+            <url>https://eldonexus.de/repository/maven-releases/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -150,7 +174,7 @@
         <dependency>
             <groupId>io.github.skytasul</groupId>
             <artifactId>glowingentities</artifactId>
-            <version>1.3.1</version>
+            <version>1.3.2</version>
             <scope>compile</scope>
         </dependency>
 <!--        // TODO implement   -->
@@ -167,13 +191,13 @@
         <dependency>
             <groupId>com.github.cryptomorin</groupId>
             <artifactId>XSeries</artifactId>
-            <version>9.5.0</version>
+            <version>9.10.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>3.12.0</version>
+            <artifactId>commons-text</artifactId>
+            <version>1.11.0</version>
         </dependency>
 
         <dependency>
@@ -182,23 +206,55 @@
             <version>2.11.2</version>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.github.Carleslc.Simple-YAML</groupId>
+            <artifactId>Simple-Yaml</artifactId>
+            <version>1.8.4</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.Carleslc.Simple-YAML</groupId>
+                    <artifactId>org.simpleyaml.configuration.implementation.snakeyaml.lib</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>me.carleslc</groupId>
+                    <artifactId>org.simpleyaml.configuration.implementation.snakeyaml.lib</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>me.carleslc.simpleyaml</groupId>
+                    <artifactId>org.simpleyaml.configuration.implementation.snakeyaml.lib</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.yannicklamprecht</groupId>
+            <artifactId>worldborderapi</artifactId>
+            <version>1.204.0</version>
+<!--            <classifier>dev</classifier>-->
+            <scope>compile</scope>
+        </dependency>
+
         <dependency>
             <groupId>de.themoep</groupId>
             <artifactId>minedown</artifactId>
             <version>1.7.1-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
+
+        <dependency>
+            <groupId>de.tr7zw</groupId>
+            <artifactId>item-nbt-api</artifactId>
+            <version>2.12.4</version>
+<!--            <scope>compile</scope>-->
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.26</version>
+            <version>1.18.32</version>
             <scope>compile</scope>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>com.github.Carleslc.Simple-YAML</groupId>-->
-<!--            <artifactId>Simple-Yaml</artifactId>-->
-<!--            <version>1.8.4</version>-->
-<!--        </dependency>-->
     </dependencies>
 
 </project>
