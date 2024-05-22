@@ -36,15 +36,13 @@ Next, add the actual dependency itself. Latest version number displayed below:
 </dependencies>
 ```
 
-Lastly, use the maven-shade plugin to shade QuickMC into your project.
+Lastly, use the maven-shade plugin to shade QuickMC into your project. It is recommended to relocate the library
 ```xml
 <plugin>
     <groupId>org.apache.maven.plugins</groupId>
     <artifactId>maven-shade-plugin</artifactId>
     <version>3.4.1</version>
     <configuration>
-        <createDependencyReducedPom>false</createDependencyReducedPom>
-        <minimizeJar>false</minimizeJar>
         <relocations>
             <relocation>
                 <pattern>com.pro4d.quickmc</pattern>
