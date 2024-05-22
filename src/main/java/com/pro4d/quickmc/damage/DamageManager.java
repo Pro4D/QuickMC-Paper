@@ -14,6 +14,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.EntityEquipment;
@@ -293,7 +294,7 @@ public class DamageManager implements Listener {
         return (reduced + (totalMetaDefensePoints() / 25)) + (hearts * 2);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     private void reduce(EntityDamageEvent event) {
         if(!(event.getEntity() instanceof Player player)) return;
         UUID uuid = player.getUniqueId();

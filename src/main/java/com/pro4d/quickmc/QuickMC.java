@@ -1,8 +1,11 @@
 package com.pro4d.quickmc;
 
+import com.pro4d.quickmc.attributes.AttributeManager;
 import com.pro4d.quickmc.damage.ArmorTypes;
 import com.pro4d.quickmc.damage.DamageManager;
 import com.pro4d.quickmc.util.PlayerBorderManager;
+import com.pro4d.quickmc.visuals.SpigotReflectionUtil;
+import com.pro4d.quickmc.visuals.WrappedVisual;
 import fr.skytasul.glowingentities.GlowingBlocks;
 import fr.skytasul.glowingentities.GlowingEntities;
 import lombok.Getter;
@@ -11,15 +14,14 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 public final class QuickMC {
 
     public static NamespacedKey CANT_DESTROY, VOID_EVENT, NO_DROP, NO_REMOVE;
     @Getter private static Set<Material> cantDestroy, voidEvent, noDrop, noRemove;
 
+    @Getter private static List<WrappedVisual> wrappedVisuals;
     @Getter private static GlowingEntities glowingEntities;
     @Getter private static GlowingBlocks glowingBlocks;
     @Getter private static PlayerBorderManager playerBorderManager;
@@ -35,8 +37,11 @@ public final class QuickMC {
 
         //if(REGISTERED.getAndSet(true)) throw new IllegalStateException("QuickLib is already registered");
 
+        SpigotReflectionUtil.init();
+
         PAPI_LOADED = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
 
+        wrappedVisuals = new ArrayList<>();
         glowingEntities = new GlowingEntities(plugin);
         glowingBlocks = new GlowingBlocks(plugin);
         playerBorderManager = new PlayerBorderManager(plugin);
@@ -44,6 +49,7 @@ public final class QuickMC {
         createKeys(plugin);
         Bukkit.getPluginManager().registerEvents(new QuickListeners(plugin), plugin);
         Bukkit.getPluginManager().registerEvents(new DamageManager(), plugin);
+        Bukkit.getPluginManager().registerEvents(new AttributeManager(), plugin);
     }
 
 

@@ -7,10 +7,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.title.Title;
 import net.md_5.bungee.api.chat.BaseComponent;
-import org.bukkit.BanList;
-import org.bukkit.Bukkit;
-import org.bukkit.Color;
-import org.bukkit.Location;
+import org.bukkit.*;
 import org.bukkit.command.CommandSender;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
@@ -293,11 +290,20 @@ public final class QuickUtils {
 
     public static Location stringToLocation(String s) {
         String[] parts = s.split(",");
-        return new Location(Bukkit.getWorld(parts[0]),
-                format(stringToDouble(parts[1])),
-                format(stringToDouble(parts[2])),
-                format(stringToDouble(parts[3]))
-        );
+        World world = Bukkit.getWorld(parts[0]);
+        if(world == null) return null;
+
+        String x = parts[1];
+        if(!isDouble(x) && !isInt(x)) return null;
+
+        String y = parts[2];
+        if(!isDouble(y) && !isInt(y)) return null;
+
+        String z = parts[3];
+        if(!isDouble(z) && !isInt(z)) return null;
+
+        return new Location(world, format(stringToDouble(x)),
+                format(stringToDouble(y)), format(stringToDouble(z)));
     }
 
     public static String locationToString(Location loc) {
