@@ -23,7 +23,7 @@ First, add the Jitpack repository.
 
 Next, add the actual dependency itself. Latest version number displayed below:
 
-![GitHub Release](https://img.shields.io/github/v/release/Pro4D/QuickMC-Paper?sort=date&display_name=tag&style=flat&labelColor=%23cfa288&color=%237ca81d)
+![GitHub Release](https://img.shields.io/github/v/release/Pro4D/QuickMC-Paper?sort=date&display_name=tag)
  = VERSION
 
 ```xml
