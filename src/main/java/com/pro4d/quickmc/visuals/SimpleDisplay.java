@@ -7,6 +7,7 @@ import com.pro4d.quickmc.util.packets.*;
 import it.unimi.dsi.fastutil.ints.IntList;
 import lombok.Getter;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -24,7 +25,10 @@ public abstract class SimpleDisplay {
     public static final WrappedDataWatcher.Serializer VECTOR_SERIALIZER = WrappedDataWatcher.Registry.get(Vector3f.class);
     public static final WrappedDataWatcher.Serializer QUATERNION_SERIALIZER = WrappedDataWatcher.Registry.getVectorSerializer();
 
-    private final WrappedDataWatcher.WrappedDataWatcherObject translationObject = new WrappedDataWatcher.WrappedDataWatcherObject(11, VECTOR_SERIALIZER),
+    private final WrappedDataWatcher.WrappedDataWatcherObject
+            entitySettings = new WrappedDataWatcher.WrappedDataWatcherObject(0, WrappedDataWatcher.Registry.get(Byte.class)),
+
+            translationObject = new WrappedDataWatcher.WrappedDataWatcherObject(11, VECTOR_SERIALIZER),
             scaleObject = new WrappedDataWatcher.WrappedDataWatcherObject(12, VECTOR_SERIALIZER),
             leftRotationObject = new WrappedDataWatcher.WrappedDataWatcherObject(13, QUATERNION_SERIALIZER),
             rightRotationObject = new WrappedDataWatcher.WrappedDataWatcherObject(14, QUATERNION_SERIALIZER),
@@ -67,7 +71,7 @@ public abstract class SimpleDisplay {
         }
         return this;
     }
-    public void spawnForPlayer(Player player) {
+    public SimpleDisplay spawnForPlayer(Player player) {
         WrapperPlayServerSpawnEntity spawn = new WrapperPlayServerSpawnEntity();
         spawn.setId(entityID);
 
@@ -89,6 +93,7 @@ public abstract class SimpleDisplay {
         this.received.add(player.getUniqueId());
 
         sendMetadataToPlayer(player);
+        return this;
     }
 
     public SimpleDisplay remove() {
@@ -138,6 +143,23 @@ public abstract class SimpleDisplay {
 //        return this;
 //    }
 
+    public SimpleDisplay setGlowing(boolean glow) {
+        Byte existing = dataWatcher.getByte(0);
+
+        if(existing == null) {
+            if(glow) existing = (byte) 0x40;
+        } else {
+            if(glow) {
+                existing = (byte) (existing | 0x40);
+            } else {
+                existing = (byte) (existing & ~0x40);
+            }
+        }
+
+        dataWatcher.setObject(entitySettings, existing);
+        return this;
+    }
+
     public SimpleDisplay setViewRange(float viewRange) {
         dataWatcher.setObject(viewRangeObject, viewRange);
         return this;
@@ -179,7 +201,6 @@ public abstract class SimpleDisplay {
         mount.setVehicle(this.riding.getEntityId());
 
         mount.broadcastPacket();
-
         return this;
     }
 
@@ -200,28 +221,25 @@ public abstract class SimpleDisplay {
         //spawn.getHandle().getBytes().write(2, yaw);
 
         teleport.broadcastPacket();
-
         return this;
     }
 
-    // TODO implement
-//    public SimpleDisplay setGlowColor(Color color) {
-//        dataWatcher.setObject(glowColorObject,
-//                argbToInt(color.getAlpha(), color.getRed(), color.getGreen(), color.getBlue())
-//        );
-//        return this;
-//    }
+    public SimpleDisplay setGlowColor(Color color) {
+        dataWatcher.setObject(glowColorObject, color.asARGB());
+        return this;
+    }
     public static int argbToInt(int alpha, int red, int green, int blue) {
         return (alpha << 24) | (red << 16) | (green << 8) | blue;
     }
 
-    public void sendMetadata() {
+    public SimpleDisplay sendMetadata() {
         for(Player online : Bukkit.getOnlinePlayers()) {
             sendMetadataToPlayer(online);
         }
+        return this;
     }
-    public void sendMetadataToPlayer(Player player) {
-        if(!received.contains(player.getUniqueId())) return;
+    public SimpleDisplay sendMetadataToPlayer(Player player) {
+        if(!received.contains(player.getUniqueId())) return this;
         WrapperPlayServerEntityMetadata packet = new WrapperPlayServerEntityMetadata();
         packet.setId(entityID);
 
@@ -233,6 +251,7 @@ public abstract class SimpleDisplay {
 
         packet.getHandle().getDataValueCollectionModifier().write(0, wrappedDataValueList);
         packet.sendPacket(player);
+        return this;
     }
 
     public enum SimpleBillboard {

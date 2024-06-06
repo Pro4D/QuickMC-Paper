@@ -27,7 +27,6 @@ import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitScheduler;
 
 import java.io.File;
@@ -250,14 +249,8 @@ public class QuickListeners implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void updateInventory(InventoryCloseEvent event) {
-        if(event.getPlayer() instanceof Player player && shouldUpdateInventory.remove(player)) {
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    player.updateInventory();
-                }
-            }.runTaskLater(plugin, 5L);
-        }
+        if(event.getPlayer() instanceof Player player
+                && shouldUpdateInventory.remove(player)) QuickUtils.syncLater(5L, player::updateInventory);
     }
 
 //    @EventHandler(priority = EventPriority.LOWEST)

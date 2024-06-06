@@ -22,6 +22,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 
+@SuppressWarnings("removal")
 public class DamageManager implements Listener {
 
     public static ExpressionTransformer PROTECTION, PROJECTILE_PROTECTION, BLAST_PROTECTION, FIRE_PROTECTION;
@@ -212,6 +213,50 @@ public class DamageManager implements Listener {
 
 
     /**
+     * Deal the inputted number of damage points of damage to an entity,
+     * while factoring in armor.
+     * Provide a source of the damage is optional.
+     **/
+    public static boolean applyDamagePoints(LivingEntity target, Entity source, double dmg, String causeName, List<ExpressionTransformer> transformers) {
+        if(target.isDead() || target.getNoDamageTicks() != 0) return false;
+        if(target instanceof Player player && player.getGameMode() == GameMode.CREATIVE) return false;
+
+        CustomDamageEvent event = new CustomDamageEvent(target, source, dmg / 2, causeName, transformers);
+        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
+        if(event.isCancelled()) return false;
+
+        target = event.getTarget();
+        source = event.getSource();
+        dmg = event.getDamage();
+        transformers = event.getTransformersList();
+
+        AtomicDouble wrapped = new AtomicDouble(getRelativeToMeta(target, dmg));
+        new DamageTransformer(wrapped, PROTECTION).apply(target, source);
+
+        transformers = new ArrayList<>(transformers);
+        if(!transformers.isEmpty()) transformers.sort(Comparator.comparingDouble(ExpressionTransformer::getPriority));
+
+        for(ExpressionTransformer expression : transformers) {
+            new DamageTransformer(wrapped, expression).apply(target, source);
+        }
+
+        double finalDmg = wrapped.get();
+        event.setFinalDmg(finalDmg);
+
+        getHasCustomDamage().add(target.getUniqueId());
+        target.damage(finalDmg, source);
+
+        LivingEntity finalTarget = target;
+        QuickUtils.sync(() -> finalTarget.setLastDamageCause(event));
+        return true;
+    }
+
+    public static boolean applyDamagePoints(LivingEntity target, Entity source, double dmg, String causeName) {
+        return applyDamagePoints(target, source, dmg, causeName, new ArrayList<>());
+    }
+
+
+    /**
      * Set the final damage of a damage event. Value in hearts
      **/
     public static void modifyDamage(LivingEntity target, Entity source, double hearts, EntityDamageEvent event, String causeName, List<ExpressionTransformer> transformers) {
@@ -264,7 +309,7 @@ public class DamageManager implements Listener {
     private static double defensePointsDiffFromMeta(LivingEntity entity) {
         return totalMetaDefensePoints() - AttributeManager.getAttributeValue(entity, Attribute.GENERIC_ARMOR);
     }
-    private static double protectionDiffFromMeta(LivingEntity entity) {
+    public static double protectionDiffFromMeta(LivingEntity entity) {
         EntityEquipment equipment = entity.getEquipment();
         double protLvl = 0;
         if(equipment != null) {
@@ -286,7 +331,7 @@ public class DamageManager implements Listener {
     /**
      * Retrieve the amount of raw damage needed to deal the requested number of hearts
      **/
-    private static double trueDamageFromSource(double hearts) {
+    public static double trueDamageFromSource(double hearts) {
         // TODO update
         double passing = 1 - (totalMetaDefensePoints() / 25);
         double reduced = passing * totalMetaProtReduction();
@@ -296,9 +341,17 @@ public class DamageManager implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     private void reduce(EntityDamageEvent event) {
-        if(!(event.getEntity() instanceof Player player)) return;
-        UUID uuid = player.getUniqueId();
+        if(!(event.getEntity() instanceof LivingEntity entity)) return;
+        UUID uuid = entity.getUniqueId();
         if(!getHasCustomDamage().contains(uuid)) return;
+
+        double damage = event.getOriginalDamage(EntityDamageEvent.DamageModifier.BASE);
+        double absorption = entity.getAbsorptionAmount();
+
+        event.setDamage(EntityDamageEvent.DamageModifier.BASE, Math.max(0, damage - absorption));
+
+        double damageAbsorbed = -Math.min(damage, absorption);
+        event.setDamage(EntityDamageEvent.DamageModifier.ABSORPTION, damageAbsorbed);
 
         event.setDamage(EntityDamageEvent.DamageModifier.ARMOR, 0);
         event.setDamage(EntityDamageEvent.DamageModifier.MAGIC, 0);

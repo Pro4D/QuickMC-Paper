@@ -80,6 +80,16 @@ public final class QuickUtils {
         return PASSIVE_MOBS.contains(entity.getType());
     }
 
+    public static double round(double value, int digits) {
+        NumberFormat nf = NumberFormat.getInstance();
+        nf.setMaximumFractionDigits(digits);
+
+        return Double.parseDouble(nf.format(value));
+    }
+
+    public static double round(double value) {
+        return round(value, 2);
+    }
 
     public static int randomInteger(int min, int max) {
         return ThreadLocalRandom.current().nextInt(min, max + 1);
@@ -338,12 +348,13 @@ public final class QuickUtils {
     }
     public static void sendMessage(CommandSender sender, String message) {
         if(message.isEmpty()) return;
+        message = message.replace("\\n", "\n");
 
         if(sender instanceof Player player && QuickMC.PAPI_LOADED) {
-            sender.sendMessage(placeholdersAndColor(player, message));
+            sender.sendMessage(placeholdersAndColor(player, message.replaceAll("\n", "\n")));
             return;
         }
-        sender.sendMessage(color(message));
+        sender.sendMessage(color(message.replaceAll("\n", "\n")));
     }
 
     public static String placeholdersAndColor(Player player, String msg) {
