@@ -18,6 +18,9 @@ public class SimpleTextDisplay extends SimpleDisplay{
             textOpacityObject = new WrappedDataWatcher.WrappedDataWatcherObject(26, WrappedDataWatcher.Registry.get(Byte.class)),
             settingsObject = new WrappedDataWatcher.WrappedDataWatcherObject(27, WrappedDataWatcher.Registry.get(Byte.class));
 
+    private String[] lines;
+    private String text;
+
     public SimpleTextDisplay(Location location, UUID uuid, int id) {
         super(EntityType.TEXT_DISPLAY, location, uuid, id);
     }
@@ -27,9 +30,14 @@ public class SimpleTextDisplay extends SimpleDisplay{
     }
 
     public SimpleTextDisplay setText(String s) {
+        this.text = s;
         super.getDataWatcher().setObject(textObject, WrappedChatComponent.fromLegacyText(s).getHandle());
         super.sendMetadata();
         return this;
+    }
+
+    public String getText() {
+        return text;
     }
 
     public SimpleTextDisplay setLineWidth(int lineWidth) {

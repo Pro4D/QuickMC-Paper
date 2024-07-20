@@ -47,13 +47,8 @@ public class PlayerFetcher {
                 .getAsJsonObject("player");
     }
 
-    public UUID getUUID(){
-        String uuidTemp = getPlayerJson().get("id").getAsString();
-        StringBuilder uuid = new StringBuilder();
-        for(int i = 0; i <= 31; i++) {
-            uuid.append(uuidTemp.charAt(i));
-        }
-        return UUID.fromString(uuid.toString());
+    public UUID getUUID() {
+        return UUID.fromString(getPlayerJson().get("id").getAsString());
     }
 
     public String getName(){

@@ -92,6 +92,7 @@ public final class QuickUtils {
     }
 
     public static int randomInteger(int min, int max) {
+        if(min == (max + 1)) return min;
         return ThreadLocalRandom.current().nextInt(min, max + 1);
 //        return (int)Math.floor(Math.random()*(max-min+1) + min);
     }
@@ -105,6 +106,7 @@ public final class QuickUtils {
     }
 
     public static double randomDouble(double min, double max) {
+        if(min == (max + 1)) return min;
         return ThreadLocalRandom.current().nextDouble(min, max + 1);
 //        return Math.random() * (max - min) + min;
     }

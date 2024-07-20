@@ -1,5 +1,6 @@
 package com.pro4d.quickmc.damage;
 
+import com.destroystokyo.paper.event.entity.EntityKnockbackByEntityEvent;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.pro4d.quickmc.QuickMC;
 import com.pro4d.quickmc.QuickUtils;
@@ -19,23 +20,29 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.*;
 
 @SuppressWarnings("removal")
 public class DamageManager implements Listener {
 
-    public static ExpressionTransformer PROTECTION, PROJECTILE_PROTECTION, BLAST_PROTECTION, FIRE_PROTECTION;
+    // TODO gamemode check for spectator too
+
+    public static ExpressionTransformer PROTECTION, PROJECTILE_PROTECTION, BLAST_PROTECTION, FIRE_PROTECTION,
+            RESISTANCE_EFFECT,
+            SHIELD_BLOCK, RESPECT_I_FRAMES;
 
     public static ArmorTypes HELMET, CHESTPLATE, LEGGINGS, BOOTS;
     public static int HELMET_PROT, CHESTPLATE_PROT, LEGGINGS_PROT, BOOTS_PROT;
 
 //    @Getter private static Map<UUID, Double> customDamage;
 
-    @Getter private static Set<UUID> hasCustomDamage;
+    @Getter private static Set<CustomDamageEvent> customDamage;
     public DamageManager() {
 //        customDamage = new HashMap<>();
-        hasCustomDamage = new HashSet<>();
+        customDamage = new HashSet<>();
 
         HELMET = ArmorTypes.NAKED;
         HELMET_PROT = 0;
@@ -157,6 +164,28 @@ public class DamageManager implements Listener {
             double scalingFactor = Math.min(protLvl, .8);
             return damage - (damage * scalingFactor);
         }));
+
+        RESISTANCE_EFFECT = new ExpressionTransformer(1, (((target, source, damage) -> {
+            PotionEffect resistance = target.getPotionEffect(PotionEffectType.DAMAGE_RESISTANCE);
+            if(resistance != null) {
+                int level = resistance.getAmplifier() + 1;
+                double partial = damage * (.2 * level);
+                damage = Math.max(damage - partial, 0);
+            }
+
+            return damage;
+        })));
+
+        // TODO change how shield blocking is implemented. maybe in the DamageEvent? maybe call "return" on method entirely?
+        SHIELD_BLOCK = new ExpressionTransformer(2, (((target, source, damage) -> {
+            if(target instanceof Player player && player.isBlocking()) damage = 0;
+            return damage;
+        })));
+
+        RESPECT_I_FRAMES = new ExpressionTransformer(3, (((target, source, damage) -> {
+            if(target.getNoDamageTicks() != 0) damage = 0;
+            return damage;
+        })));
     }
 
     public static double totalMetaDefensePoints() {
@@ -173,11 +202,11 @@ public class DamageManager implements Listener {
      * while factoring in armor.
      * Provide a source of the damage is optional.
     **/
-    public static boolean damageEntity(LivingEntity target, Entity source, double hearts, String causeName, List<ExpressionTransformer> transformers) {
-        if(target.isDead() || target.getNoDamageTicks() != 0) return false;
+    public static boolean damageEntity(LivingEntity target, Entity source, double hearts, String causeName, List<ExpressionTransformer> transformers, boolean applyIFrames, boolean applyKnockback) {
+        if(target.isDead()) return false;
         if(target instanceof Player player && player.getGameMode() == GameMode.CREATIVE) return false;
 
-        CustomDamageEvent event = new CustomDamageEvent(target, source, hearts, causeName, transformers);
+        CustomDamageEvent event = new CustomDamageEvent(target, source, hearts, causeName, transformers, applyIFrames, applyKnockback, true);
         QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
         if(event.isCancelled()) return false;
 
@@ -185,12 +214,15 @@ public class DamageManager implements Listener {
         source = event.getSource();
         hearts = event.getDamage();
         transformers = event.getTransformersList();
+        applyIFrames = event.isApplyIFrames();
 
         AtomicDouble wrapped = new AtomicDouble(getRelativeToMeta(target, hearts));
         new DamageTransformer(wrapped, PROTECTION).apply(target, source);
 
         transformers = new ArrayList<>(transformers);
         if(!transformers.isEmpty()) transformers.sort(Comparator.comparingDouble(ExpressionTransformer::getPriority));
+
+        if(transformers.contains(RESPECT_I_FRAMES) && target.getNoDamageTicks() > 0) return false;
 
         for(ExpressionTransformer expression : transformers) {
             new DamageTransformer(wrapped, expression).apply(target, source);
@@ -199,16 +231,20 @@ public class DamageManager implements Listener {
         double finalDmg = wrapped.get();
         event.setFinalDmg(finalDmg);
 
-        getHasCustomDamage().add(target.getUniqueId());
+        getCustomDamage().add(event);
+        target.setNoDamageTicks(0);
         target.damage(finalDmg, source);
+        if(applyIFrames) target.setNoDamageTicks(20);
 
         LivingEntity finalTarget = target;
         QuickUtils.sync(() -> finalTarget.setLastDamageCause(event));
         return true;
     }
-
+    public static boolean damageEntity(LivingEntity target, Entity source, double hearts, String causeName, List<ExpressionTransformer> transformers)  {
+        return damageEntity(target, source, hearts, causeName, transformers, true, true);
+    }
     public static boolean damageEntity(LivingEntity target, Entity source, double hearts, String causeName) {
-        return damageEntity(target, source, hearts, causeName, new ArrayList<>());
+        return damageEntity(target, source, hearts, causeName, new ArrayList<>(), true, true);
     }
 
 
@@ -217,11 +253,12 @@ public class DamageManager implements Listener {
      * while factoring in armor.
      * Provide a source of the damage is optional.
      **/
-    public static boolean applyDamagePoints(LivingEntity target, Entity source, double dmg, String causeName, List<ExpressionTransformer> transformers) {
-        if(target.isDead() || target.getNoDamageTicks() != 0) return false;
+    public static boolean applyDamagePoints(LivingEntity target, Entity source, double dmg, String causeName, List<ExpressionTransformer> transformers, boolean applyIFrames, boolean applyKnockback) {
+        if(target.isDead()) return false;
         if(target instanceof Player player && player.getGameMode() == GameMode.CREATIVE) return false;
 
-        CustomDamageEvent event = new CustomDamageEvent(target, source, dmg / 2, causeName, transformers);
+        // TODO isHearts ?
+        CustomDamageEvent event = new CustomDamageEvent(target, source, dmg / 2, causeName, transformers, applyIFrames, applyKnockback, true);
         QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
         if(event.isCancelled()) return false;
 
@@ -229,12 +266,15 @@ public class DamageManager implements Listener {
         source = event.getSource();
         dmg = event.getDamage();
         transformers = event.getTransformersList();
+        applyIFrames = event.isApplyIFrames();
 
         AtomicDouble wrapped = new AtomicDouble(getRelativeToMeta(target, dmg));
         new DamageTransformer(wrapped, PROTECTION).apply(target, source);
 
         transformers = new ArrayList<>(transformers);
         if(!transformers.isEmpty()) transformers.sort(Comparator.comparingDouble(ExpressionTransformer::getPriority));
+
+        if(transformers.contains(RESPECT_I_FRAMES) && target.getNoDamageTicks() > 0) return false;
 
         for(ExpressionTransformer expression : transformers) {
             new DamageTransformer(wrapped, expression).apply(target, source);
@@ -243,35 +283,85 @@ public class DamageManager implements Listener {
         double finalDmg = wrapped.get();
         event.setFinalDmg(finalDmg);
 
-        getHasCustomDamage().add(target.getUniqueId());
+        getCustomDamage().add(event);
+        target.setNoDamageTicks(0);
         target.damage(finalDmg, source);
+        if(applyIFrames) target.setNoDamageTicks(20);
 
         LivingEntity finalTarget = target;
         QuickUtils.sync(() -> finalTarget.setLastDamageCause(event));
         return true;
     }
-
+    public static boolean applyDamagePoints(LivingEntity target, Entity source, double dmg, String causeName, List<ExpressionTransformer> transformers) {
+        return applyDamagePoints(target, source, dmg, causeName, transformers, true, true);
+    }
     public static boolean applyDamagePoints(LivingEntity target, Entity source, double dmg, String causeName) {
-        return applyDamagePoints(target, source, dmg, causeName, new ArrayList<>());
+        return applyDamagePoints(target, source, dmg, causeName, new ArrayList<>(), true, true);
+    }
+
+    /**
+     * Deal the inputted number of damage points of damage to an entity,
+     * while factoring in armor.
+     * Provide a source of the damage is optional.
+     **/
+    public static boolean dealDamagePoints(LivingEntity target, Entity source, double dmg, String causeName, List<ExpressionTransformer> transformers, boolean applyIFrames, boolean applyKnockback) {
+        if(target.isDead()) return false;
+        if(target instanceof Player player && player.getGameMode() == GameMode.CREATIVE) return false;
+
+        CustomDamageEvent event = new CustomDamageEvent(target, source, dmg / 2, causeName, transformers, applyIFrames, applyKnockback, false);
+        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
+        if(event.isCancelled()) return false;
+
+        target = event.getTarget();
+        source = event.getSource();
+        dmg = event.getDamage();
+        transformers = event.getTransformersList();
+        applyIFrames = event.isApplyIFrames();
+
+        AtomicDouble wrapped = new AtomicDouble(getRelativeToMeta(target, dmg));
+        new DamageTransformer(wrapped, PROTECTION).apply(target, source);
+
+        transformers = new ArrayList<>(transformers);
+        if(!transformers.isEmpty()) transformers.sort(Comparator.comparingDouble(ExpressionTransformer::getPriority));
+
+        if(transformers.contains(RESPECT_I_FRAMES) && target.getNoDamageTicks() > 0) return false;
+
+        for(ExpressionTransformer expression : transformers) {
+            new DamageTransformer(wrapped, expression).apply(target, source);
+        }
+
+        double finalDmg = wrapped.get();
+        event.setFinalDmg(finalDmg);
+
+        getCustomDamage().add(event);
+        target.setNoDamageTicks(0);
+        target.damage(finalDmg, source);
+        if(applyIFrames) target.setNoDamageTicks(20);
+
+        LivingEntity finalTarget = target;
+        QuickUtils.sync(() -> finalTarget.setLastDamageCause(event));
+        return true;
+    }
+    public static boolean dealDamagePoints(LivingEntity target, Entity source, double dmg, String causeName, List<ExpressionTransformer> transformers) {
+        return dealDamagePoints(target, source, dmg, causeName, transformers, true, true);
+    }
+    public static boolean dealDamagePoints(LivingEntity target, Entity source, double dmg, String causeName) {
+        return dealDamagePoints(target, source, dmg, causeName, new ArrayList<>(), true, true);
     }
 
 
     /**
      * Set the final damage of a damage event. Value in hearts
      **/
-    public static void modifyDamage(LivingEntity target, Entity source, double hearts, EntityDamageEvent event, String causeName, List<ExpressionTransformer> transformers) {
-        CustomDamageEvent dmgEvent = new CustomDamageEvent(target, source, hearts, causeName, transformers);
+    public static double modifyDamage(LivingEntity target, Entity source, double hearts, EntityDamageEvent event, String causeName, List<ExpressionTransformer> transformers, boolean applyIFrames, boolean applyKnockback) {
+        CustomDamageEvent dmgEvent = new CustomDamageEvent(target, source, hearts, causeName, transformers, applyIFrames, applyKnockback, true);
         QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(dmgEvent);
-        if(dmgEvent.isCancelled()) return;
+        if(dmgEvent.isCancelled()) return -1;
 
         target = dmgEvent.getTarget();
         source = dmgEvent.getSource();
         hearts = dmgEvent.getDamage();
         transformers = dmgEvent.getTransformersList();
-
-//        double dmg = getRelativeToMeta(target, hearts);
-//        double scalingFactor = 1.0 + protectionDiffFromMeta(target);
-//        dmg = dmg + (dmg * scalingFactor);
 
         AtomicDouble wrapped = new AtomicDouble(getRelativeToMeta(target, hearts));
         new DamageTransformer(wrapped, PROTECTION).apply(target, source);
@@ -289,8 +379,57 @@ public class DamageManager implements Listener {
         event.setDamage(EntityDamageEvent.DamageModifier.BASE, wrapped.get());
         event.setDamage(EntityDamageEvent.DamageModifier.ARMOR, 0);
         event.setDamage(EntityDamageEvent.DamageModifier.MAGIC, 0);
+
+        return event.getFinalDamage();
+    }
+    public static double modifyDamage(LivingEntity target, Entity source, double hearts, EntityDamageEvent event, String causeName, List<ExpressionTransformer> transformers) {
+        return modifyDamage(target, source, hearts, event, causeName, transformers, true, true);
+    }
+    public static double modifyDamage(LivingEntity target, Entity source, double hearts, EntityDamageEvent event, String causeName) {
+        return modifyDamage(target, source, hearts, event, causeName, new ArrayList<>(), true, true);
     }
 
+    /**
+     * Set the final damage of a damage event. Value in damage points
+     **/
+    public static double modifyDamagePoints(LivingEntity target, Entity source, double dmg, EntityDamageEvent event, String causeName, List<ExpressionTransformer> transformers, boolean applyIFrames, boolean applyKnockback) {
+        // TODO isHearts ?
+        CustomDamageEvent dmgEvent = new CustomDamageEvent(target, source, dmg / 2, causeName, transformers, applyIFrames, applyKnockback, true);
+        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(dmgEvent);
+        if(dmgEvent.isCancelled()) return -1;
+
+        target = dmgEvent.getTarget();
+        source = dmgEvent.getSource();
+        dmg = dmgEvent.getDamage();
+        transformers = dmgEvent.getTransformersList();
+
+        AtomicDouble wrapped = new AtomicDouble(getRelativeToMeta(target, dmg));
+        new DamageTransformer(wrapped, PROTECTION).apply(target, source);
+
+        transformers = new ArrayList<>(transformers);
+        if(!transformers.isEmpty()) transformers.sort(Comparator.comparingDouble(ExpressionTransformer::getPriority));
+
+        for(ExpressionTransformer expression : transformers) {
+            new DamageTransformer(wrapped, expression).apply(target, source);
+        }
+
+        // TODO make this more open-ended (aka return value instead of hard modifying event) ?
+
+//        event.setDamage(EntityDamageEvent.DamageModifier.BASE, dmg);
+        event.setDamage(EntityDamageEvent.DamageModifier.BASE, wrapped.get());
+        event.setDamage(EntityDamageEvent.DamageModifier.ARMOR, 0);
+        event.setDamage(EntityDamageEvent.DamageModifier.MAGIC, 0);
+
+        return event.getFinalDamage();
+    }
+    public static double modifyDamagePoints(LivingEntity target, Entity source, double dmg, EntityDamageEvent event, String causeName, List<ExpressionTransformer> transformers) {
+        return modifyDamagePoints(target, source, dmg, event, causeName, transformers, true, true);
+    }
+    public static double modifyDamagePoints(LivingEntity target, Entity source, double dmg, EntityDamageEvent event, String causeName) {
+        return modifyDamagePoints(target, source, dmg, event, causeName, new ArrayList<>(), true, true);
+    }
+
+    public static void setFinalDamage(EntityDamageEvent event, double dmg) {}
 
     /**
      * Retrieve the difference between total damage reduction
@@ -343,22 +482,41 @@ public class DamageManager implements Listener {
     private void reduce(EntityDamageEvent event) {
         if(!(event.getEntity() instanceof LivingEntity entity)) return;
         UUID uuid = entity.getUniqueId();
-        if(!getHasCustomDamage().contains(uuid)) return;
+        CustomDamageEvent customDmg = getTakenCustomDamage(uuid);
+        if(customDmg == null) return;
 
-        double damage = event.getOriginalDamage(EntityDamageEvent.DamageModifier.BASE);
-        double absorption = entity.getAbsorptionAmount();
+        if(customDmg.isHearts()) {
+            int damage = (int) event.getOriginalDamage(EntityDamageEvent.DamageModifier.BASE);
+            int absorption = (int) entity.getAbsorptionAmount();
 
-        event.setDamage(EntityDamageEvent.DamageModifier.BASE, Math.max(0, damage - absorption));
+//            event.setDamage(EntityDamageEvent.DamageModifier.BASE, Math.max(0, damage - absorption));
 
-        double damageAbsorbed = -Math.min(damage, absorption);
-        event.setDamage(EntityDamageEvent.DamageModifier.ABSORPTION, damageAbsorbed);
+            int damageAbsorbed = -Math.min(damage, absorption);
+            event.setDamage(EntityDamageEvent.DamageModifier.ABSORPTION, damageAbsorbed);
 
-        event.setDamage(EntityDamageEvent.DamageModifier.ARMOR, 0);
-        event.setDamage(EntityDamageEvent.DamageModifier.MAGIC, 0);
+            event.setDamage(EntityDamageEvent.DamageModifier.ARMOR, 0);
+            event.setDamage(EntityDamageEvent.DamageModifier.MAGIC, 0);
+            if(entity instanceof Player) event.setDamage(EntityDamageEvent.DamageModifier.BLOCKING, 0);
+        }
 
-        getHasCustomDamage().remove(uuid);
+        if(customDmg.isApplyKnockback()) {
+            getCustomDamage().remove(customDmg);
+        } else QuickUtils.sync(() -> getCustomDamage().remove(customDmg));
     }
 
+    @EventHandler(priority = EventPriority.LOWEST)
+    private void noKnockback(EntityKnockbackByEntityEvent event) {
+        CustomDamageEvent customDmg = getTakenCustomDamage(event.getEntity().getUniqueId());
+        if(customDmg != null && !customDmg.isApplyKnockback()) event.setCancelled(true);
+        getCustomDamage().remove(customDmg);
+    }
+
+    public static CustomDamageEvent getTakenCustomDamage(UUID uuid) {
+        for(CustomDamageEvent event : getCustomDamage()) {
+            if(event.getTarget().getUniqueId().equals(uuid)) return event;
+        }
+        return null;
+    }
 
     static class DamageTransformer {
 

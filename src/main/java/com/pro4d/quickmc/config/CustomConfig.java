@@ -1,5 +1,6 @@
 package com.pro4d.quickmc.config;
 
+import com.pro4d.quickmc.QuickUtils;
 import lombok.Getter;
 import lombok.Setter;
 import org.bukkit.Bukkit;
@@ -52,14 +53,16 @@ public class CustomConfig extends YamlConfiguration implements Commentable {
     }
 
     public void saveConfig() {
-        try {
-            this.save(this.file);
-            ConfigUpdater.update(plugin, this, exemptions);
+        QuickUtils.asyncLater(1L, () -> {
+            try {
+                this.save(this.file);
+                ConfigUpdater.update(plugin, this, exemptions);
 
-        } catch (IOException e) {
-            Bukkit.getLogger().severe("Failed to save the config: " + configName);
-            e.printStackTrace();
-        }
+            } catch (IOException e) {
+                Bukkit.getLogger().severe("Failed to save the config: " + configName);
+                e.printStackTrace();
+            }
+        });
     }
 
     public void reloadConfig() {

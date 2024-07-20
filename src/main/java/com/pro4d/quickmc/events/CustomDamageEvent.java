@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
-@SuppressWarnings("deprecation")
+@SuppressWarnings("removal")
 @Getter
 @Setter
 public class CustomDamageEvent extends EntityDamageByEntityEvent implements Cancellable {
@@ -22,10 +22,12 @@ public class CustomDamageEvent extends EntityDamageByEntityEvent implements Canc
     private LivingEntity target;
     private Entity source;
     private double damage, finalDmg;
+    private boolean applyIFrames, applyKnockback, isHearts;
+
     private final String causeName;
     private final List<ExpressionTransformer> transformersList;
 
-    public CustomDamageEvent(LivingEntity target, Entity source, double damage, String causeName, List<ExpressionTransformer> transformers) {
+    public CustomDamageEvent(LivingEntity target, Entity source, double damage, String causeName, List<ExpressionTransformer> transformers, boolean applyIFrames, boolean applyKB, boolean isHearts) {
         super(target, source, DamageCause.CUSTOM, damage);
         this.target = target;
         this.source = source;
@@ -33,6 +35,10 @@ public class CustomDamageEvent extends EntityDamageByEntityEvent implements Canc
         this.finalDmg = damage;
         this.causeName = causeName;
         this.transformersList = transformers;
+
+        this.applyIFrames = applyIFrames;
+        this.applyKnockback = applyKB;
+        this.isHearts = isHearts;
 
         this.isCancelled = false;
     }
