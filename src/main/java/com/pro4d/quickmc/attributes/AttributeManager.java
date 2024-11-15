@@ -1,164 +1,236 @@
 package com.pro4d.quickmc.attributes;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.ListenerPriority;
-import com.comphenix.protocol.events.PacketAdapter;
-import com.comphenix.protocol.events.PacketEvent;
-import com.comphenix.protocol.wrappers.WrappedAttribute;
-import com.cryptomorin.xseries.ReflectionUtils;
+import com.cryptomorin.xseries.reflection.XReflection;
+import com.cryptomorin.xseries.reflection.minecraft.MinecraftClassHandle;
+import com.cryptomorin.xseries.reflection.minecraft.MinecraftConnection;
+import com.cryptomorin.xseries.reflection.minecraft.MinecraftPackage;
+import com.github.retrooper.packetevents.event.PacketListener;
+import com.github.retrooper.packetevents.event.PacketSendEvent;
+import com.github.retrooper.packetevents.protocol.attribute.Attributes;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateAttributes;
 import com.pro4d.quickmc.QuickMC;
 import com.pro4d.quickmc.QuickUtils;
-import com.pro4d.quickmc.events.AttributeApplyEvent;
-import com.pro4d.quickmc.util.packets.WrapperPlayServerUpdateAttributes;
 import de.tr7zw.changeme.nbtapi.NBTCompound;
 import de.tr7zw.changeme.nbtapi.NBTCompoundList;
-import de.tr7zw.changeme.nbtapi.NBTEntity;
-import de.tr7zw.changeme.nbtapi.NBTFile;
 import de.tr7zw.changeme.nbtapi.iface.ReadWriteNBT;
+import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import lombok.Getter;
 import org.bukkit.Bukkit;
-import org.bukkit.World;
 import org.bukkit.attribute.Attributable;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
+import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 
 @Getter
-public class AttributeManager implements Listener {
+public class AttributeManager implements PacketListener {
 
-    @Getter public static AttributeManager instance;
+    @Getter private static AttributeManager instance;
+
+    private static String INSTANCE_M_RT, INSTANCE_P_TYPE, CONVERTER_M_N, INSTANCE_V_N, CALCULATE_M_N;
 
     private static Field ATTRIBUTE_MAP, HANDLE, INSTANCE_VALUE;
     private static Method INSTANCE_METHOD, CONVERTOR_METHOD;
+    public static Method CALCULATE_METHOD;
 
-    // TODO adjust the setVariable (NMS) related methods. so they adjust according to the real value. aka if changing armor
+    private final Map<UUID, AttributeValueData> valueOverrides;
+    private final Map<UUID, AttributeValueData> valueModifiers;
 
-    private final Map<UUID, Set<AttributeValueData>> customAttributeValues;
     public AttributeManager() {
         instance = this;
-        this.customAttributeValues = new HashMap<>();
 
-        cacheReflection();
+        this.valueOverrides = new HashMap<>();
+        this.valueModifiers = new HashMap<>();
 
-        ProtocolManager protocolManager = ProtocolLibrary.getProtocolManager();
-        protocolManager.addPacketListener(new PacketAdapter(QuickMC.getSourcePlugin(), ListenerPriority.NORMAL, PacketType.Play.Server.UPDATE_ATTRIBUTES) {
-            @Override
-            public void onPacketSending(PacketEvent event) {
-                WrapperPlayServerUpdateAttributes updateAttributes = new WrapperPlayServerUpdateAttributes(event.getPacket());
-                LivingEntity entity = null;
-                int eid = updateAttributes.getEntityId();
-                for(World world : Bukkit.getServer().getWorlds()) {
-                    for(LivingEntity living : world.getLivingEntities()) {
-                        if(living.getEntityId() != eid) continue;
-                        entity = living;
-                        break;
-                    }
-                }
-                if(entity == null) return;
+        loadFieldStrings();
+        try {
+            cacheReflection();
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-                Set<AttributeValueData> attributeValues = getAttributeValueData(entity.getUniqueId());
-                if(attributeValues.isEmpty()) return;
+    /* Reflection Methods */
+    private void loadFieldStrings() {
+        // TODO for future. remove string search entirely
 
-                List<WrappedAttribute> attributes = updateAttributes.getAttributes();
+        int minor = XReflection.MINOR_NUMBER;
+        int patch = XReflection.PATCH_NUMBER;
 
-                Map<Integer, WrappedAttribute> replaceMap = new HashMap<>();
-                for(int a = 0; a < attributes.size(); a++) {
-                    String key = attributes.get(a).getAttributeKey();
-                    for(AttributeValueData data : attributeValues) {
-                        String k1 = data.getAttribute().getKey().getKey();
-                        if(!k1.equalsIgnoreCase(key)) continue;
+        if(minor == 21) {
+            //Bukkit.getLogger().info("Loaded NMS support for 1.21.0.");
 
-                        AttributeInstance instance = entity.getAttribute(data.getAttribute());
-                        if(instance != null) replaceMap.put(a, WrappedAttribute.newBuilder().baseValue(instance.getValue()).attributeKey(k1).build());
-                    }
-                }
+            INSTANCE_M_RT = "net.minecraft.world.entity.ai.attributes.AttributeInstance";
+            INSTANCE_P_TYPE = "net.minecraft.core.Holder";
+            CONVERTER_M_N = "bukkitToMinecraftHolder";
+            INSTANCE_V_N = "cachedValue";
+            CALCULATE_M_N = "calculateValue";
 
-                for(int i : replaceMap.keySet()) {
-                    WrappedAttribute associated = replaceMap.getOrDefault(i, null);
-                    if(associated != null) attributes.set(i, associated);
-                }
-                updateAttributes.setAttributes(attributes);
+        } else if(minor == 20 && patch == 4) {
+            //Bukkit.getLogger().info("Loaded NMS support for 1.20.4.");
 
-                event.setPacket(updateAttributes.getHandle());
+            INSTANCE_M_RT = "net.minecraft.world.entity.ai.attributes.AttributeModifiable";
+            INSTANCE_P_TYPE = "net.minecraft.world.entity.ai.attributes.AttributeBase";
+            CONVERTER_M_N = "bukkitToMinecraft";
+            INSTANCE_V_N = "g";
+            CALCULATE_M_N = "h";
+
+        } else {
+            Bukkit.getLogger().info("QuickMC Attribute Manager could not find supported game version!");
+            INSTANCE_M_RT = "";
+            INSTANCE_P_TYPE = "";
+            CONVERTER_M_N = "";
+            INSTANCE_V_N = "";
+            CALCULATE_M_N = "";
+        }
+    }
+    private void cacheReflection() throws ReflectiveOperationException {
+        MinecraftClassHandle attributeMap = XReflection.ofMinecraft()
+                .inPackage(MinecraftPackage.CB, "attribute")
+                .named("CraftAttributeMap");
+
+        ATTRIBUTE_MAP = XReflection.ofMinecraft()
+                .inPackage(MinecraftPackage.NMS, "world.entity")
+                .named("EntityLiving").field().returns(attributeMap)
+                .named("craftAttributes").makeAccessible().setter().reflectJvm();
+
+
+        MinecraftClassHandle attributeMapBase = XReflection.namespaced()
+                .ofMinecraft("package net.minecraft.world.entity.ai.attributes; class AttributeMapBase {}");
+
+        HANDLE = attributeMap.field().returns(attributeMapBase).named("handle").makeAccessible().setter().reflectJvm();
+
+        MinecraftClassHandle attributeMod = XReflection.namespaced()
+                .ofMinecraft("package net.minecraft.world.entity.ai.attributes; class AttributeModifiable {}");
+
+        // get java class. check if it auto converts ?
+        // TODO IT DOES.
+
+        try {
+            Class<?> c = Class.forName(INSTANCE_M_RT);
+            for(Method dm : c.getDeclaredMethods()) {
+                if(!dm.getName().equalsIgnoreCase(CALCULATE_M_N)) continue;
+                CALCULATE_METHOD = dm;
+                CALCULATE_METHOD.setAccessible(true);
+                break;
             }
-        });
-    }
-
-    private void cacheReflection() {
-        Class<?> LIVING_ENTITY = ReflectionUtils.getNMSClass("world.entity", "EntityLiving");
-
-        Field craftAttributeMap = null;
-        for(Field df : LIVING_ENTITY.getDeclaredFields()) {
-            if(!getNameOfClass(df.getType().getName()).equals("CraftAttributeMap")) continue;
-            craftAttributeMap = df;
-            break;
-        }
-
-        if(craftAttributeMap != null) {
-            ATTRIBUTE_MAP = craftAttributeMap;
-            ATTRIBUTE_MAP.setAccessible(true);
-        }
-
-        try {
-            HANDLE = ReflectionUtils.getCraftClass("attribute.CraftAttributeMap").getDeclaredField("handle");
-            HANDLE.setAccessible(true);
-        } catch (NoSuchFieldException e) {
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
 
-        Method targetMethod = null;
-        for(Method m : ReflectionUtils.getNMSClass("world.entity.ai.attributes.AttributeMapBase").getMethods()) {
-            Parameter[] parameters = m.getParameters();
-            if(parameters.length != 1) continue;
-
-            String two = getNameOfClass(m.getReturnType().getName());
-            if(!two.equals("AttributeModifiable")) continue;
-
-            String four = getNameOfClass(parameters[0].getType().getName());
-            if(!four.equals("AttributeBase")) continue;
-            targetMethod = m;
-            break;
-        }
-        if(targetMethod != null) {
-            INSTANCE_METHOD = targetMethod;
-            INSTANCE_METHOD.setAccessible(true);
-        }
-
+        INSTANCE_METHOD = null;
         try {
-            CONVERTOR_METHOD = ReflectionUtils.getCraftClass("attribute.CraftAttribute").getDeclaredMethod("bukkitToMinecraft", Attribute.class);
-        } catch (NoSuchMethodException e) {
+            Class<?> rr = attributeMapBase.reflect();
+            for(Method m : rr.getMethods()) {
+                if(m.getParameters().length != 1) continue;
+                if(!m.getReturnType().getName().equalsIgnoreCase(INSTANCE_M_RT)) continue;
+                if(!m.getParameters()[0].getType().getName().equalsIgnoreCase(INSTANCE_P_TYPE)) continue;
+
+                INSTANCE_METHOD = m;
+                break;
+            }
+
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
 
+        CONVERTOR_METHOD = null;
         try {
-            INSTANCE_VALUE = ReflectionUtils.getNMSClass("world.entity.ai.attributes", "AttributeModifiable").getDeclaredField("g");
-            INSTANCE_VALUE.setAccessible(true);
-        } catch (NoSuchFieldException e) {
+            Class<?> rr = XReflection.ofMinecraft()
+                    .inPackage(MinecraftPackage.CB, "attribute")
+                    .named("CraftAttribute").reflect();
+
+            for(Method m : rr.getMethods()) {
+                if(!m.getName().equalsIgnoreCase(CONVERTER_M_N)) continue;
+                CONVERTOR_METHOD = m;
+                break;
+            }
+
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+
+        INSTANCE_VALUE = null;
+        try {
+            for(Field f1 : attributeMod.reflect().getDeclaredFields()) {
+                if(!f1.getName().equalsIgnoreCase(INSTANCE_V_N)) continue;
+                INSTANCE_VALUE = f1;
+                INSTANCE_VALUE.setAccessible(true);
+                break;
+            }
+
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
     }
-    private String getNameOfClass(String clazz) {
-        String[] parts = clazz.split("\\.");
-        return parts[parts.length - 1];
+
+    @Override
+    public void onPacketSend(PacketSendEvent event) {
+        if(!event.getPacketType().equals(PacketType.Play.Server.UPDATE_ATTRIBUTES)) return;
+
+        WrapperPlayServerUpdateAttributes updateAttributes = new WrapperPlayServerUpdateAttributes(event);
+        Player player = event.getPlayer();
+
+        if(!(SpigotConversionUtil.getEntityById(player.getWorld(), updateAttributes.getEntityId()) instanceof Player target)) return;
+
+        Map<com.github.retrooper.packetevents.protocol.attribute.Attribute, WrapperPlayServerUpdateAttributes.Property> props = new HashMap<>();
+
+        AttributeValueData overrideData = getValueOverrideData(player);
+        AttributeValueData modifyData = getValueModifyData(player);
+
+        boolean pass = overrideData == null && modifyData == null;
+
+        for(Attribute bukkit : Attribute.values()) {
+            AttributeInstance inst = target.getAttribute(bukkit);
+            if(inst == null) continue;
+
+            com.github.retrooper.packetevents.protocol.attribute.Attribute attribute = Attributes.getByName(bukkit.getKey().asString());
+            if(attribute == null) continue;
+            double v = getRealValue(target, bukkit);
+            if(v == -1) v = inst.getValue();
+
+            if(!pass) {
+                if (modifyData != null) {
+                    double valueModifier = modifyData.getValueForAttribute(bukkit);
+                    if (valueModifier != Double.MIN_VALUE) v += valueModifier;
+                }
+
+                if (overrideData != null) {
+                    double override = overrideData.getValueForAttribute(bukkit);
+                    if (override != Double.MIN_VALUE) v = override;
+                }
+            }
+
+//            Collection<AttributeModifier> modifiers = inst.getModifiers();
+//            List<WrapperPlayServerUpdateAttributes.PropertyModifier> propertyModifiers = new ArrayList<>();
+//            for(AttributeModifier mod : modifiers) {
+//                try {
+//                    propertyModifiers.add(new WrapperPlayServerUpdateAttributes.PropertyModifier(mod.getUniqueId(), mod.getAmount(), convertOperation(mod.getOperation())));
+//
+//                } catch (IllegalArgumentException ignore) {} // TODO fix
+//            }
+
+            // TODO check current inst vs set value ?
+            props.put(attribute, new WrapperPlayServerUpdateAttributes.Property(attribute, v, List.of())); // TODO certain modifiers need to not be provided ?
+        }
+
+        List<WrapperPlayServerUpdateAttributes.Property> presetProperties = updateAttributes.getProperties();
+        presetProperties.removeIf(p -> props.containsKey(p.getAttribute()));
+        presetProperties.addAll(props.values());
+
+        updateAttributes.setProperties(presetProperties);
+        event.markForReEncode(true);
     }
+
+    /* Bukkit Attribute Manipulation */
 
     public static void setBukkitAttribute(LivingEntity target, Attribute attribute, double value) {
         AttributeInstance instance = target.getAttribute(attribute);
@@ -170,159 +242,23 @@ public class AttributeManager implements Listener {
         QuickUtils.syncLater(duration, () -> setBukkitAttribute(target, attribute, restore));
     }
 
-    public static void setAttribute(LivingEntity target, Attribute attribute, double value) {
-        AttributeApplyEvent event = new AttributeApplyEvent(target, attribute, value);
-        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
-        if(event.isCancelled()) return;
+//    public static void setAttribute(LivingEntity target, Attribute attribute, double value) {
+//        AttributeApplyEvent event = new AttributeApplyEvent(target, attribute, value);
+//        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
+//        if(event.isCancelled()) return;
+//
+//        attribute = event.getAttribute();
+//        value = event.getValue();
+//
+//        if(target instanceof Player player) setInternalValue(player, attribute, value);
+//    }
+//    public static void setTimedAttribute(LivingEntity target, Attribute attribute, double value, double restore, long duration) {
+//        setAttribute(target, attribute, value);
+//
+//        QuickUtils.syncLater(duration, () -> setAttribute(target, attribute, restore));
+//    }
 
-        attribute = event.getAttribute();
-        value = event.getValue();
-
-        NBTCompound compound = getCompound(target);
-        getNBT(compound, attribute).setDouble("Base", value);
-
-        AttributeInstance instance = target.getAttribute(attribute);
-        assert instance != null;
-        instance.setBaseValue(value);
-
-        if(!(compound instanceof NBTFile nbtFile)) return;
-        CompletableFuture.runAsync(() -> {
-            try {
-                nbtFile.save();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-    public static void setTimedAttribute(LivingEntity target, Attribute attribute, double value, double restore, long duration) {
-        setAttribute(target, attribute, value);
-
-        QuickUtils.syncLater(duration, () -> setAttribute(target, attribute, restore));
-    }
-
-    public static void setAttributeValue(Player target, Attribute attribute, double value, AttributeValueData.AttributeOperation operation) {
-        AttributeApplyEvent event = new AttributeApplyEvent(target, attribute, value);
-        QuickMC.getSourcePlugin().getServer().getPluginManager().callEvent(event);
-        if(event.isCancelled()) return;
-
-        attribute = event.getAttribute();
-        value = event.getValue();
-
-        AttributeInstance instance = target.getAttribute(attribute);
-        if(instance == null) return;
-
-        double v = instance.getValue();
-        if(operation == AttributeValueData.AttributeOperation.SET) {
-            v = value;
-        } else if(operation == AttributeValueData.AttributeOperation.ADJUST) {
-            v += value;
-        }
-
-        set(target, attribute, v);
-
-        if(operation != AttributeValueData.AttributeOperation.NOTHING) {
-            Set<AttributeValueData> set = getInstance().getCustomAttributeValues().getOrDefault(target.getUniqueId(), new HashSet<>());
-            if(getValueData(set, attribute) == null) {
-                set.add(new AttributeValueData(attribute, operation, value));
-                getInstance().getCustomAttributeValues().put(target.getUniqueId(), set);
-            }
-        }
-
-        WrapperPlayServerUpdateAttributes attributesPacket = new WrapperPlayServerUpdateAttributes();
-        attributesPacket.setAttributes(List.of(WrappedAttribute.newBuilder().baseValue(v).attributeKey(attribute.getKey().getKey()).build()));
-        attributesPacket.setEntityId(target.getEntityId());
-        attributesPacket.broadcastPacket();
-    }
-    public static void setTimedAttributeValue(Player target, Attribute attribute, double value, AttributeValueData.AttributeOperation operation,
-                                              double restore, long duration) {
-        setAttributeValue(target, attribute, value, operation);
-
-        QuickUtils.syncLater(duration, () -> clearAttributeValue(target, attribute, restore));
-    }
-
-    public static void clearAttributeValue(Player target, Attribute attribute, double restore) {
-        Set<AttributeValueData> set = getInstance().getCustomAttributeValues().getOrDefault(target.getUniqueId(), new HashSet<>());
-        AttributeValueData data = getValueData(set, attribute);
-        if(data != null) {
-            set.remove(data);
-            getInstance().getCustomAttributeValues().put(target.getUniqueId(), set);
-        }
-
-        set(target, attribute, restore);
-
-        WrapperPlayServerUpdateAttributes attributesPacket = new WrapperPlayServerUpdateAttributes();
-        attributesPacket.setAttributes(List.of(WrappedAttribute.newBuilder().baseValue(restore).attributeKey(attribute.getKey().getKey()).build()));
-        attributesPacket.setEntityId(target.getEntityId());
-        attributesPacket.broadcastPacket();
-    }
-
-    private static void set(Player player, Attribute attribute, double val) {
-        // TODO add support for other entities
-        Object entityPlayer = ReflectionUtils.getHandle(player);
-        if(entityPlayer == null) return;
-
-        try {
-            Object attributeMap = ATTRIBUTE_MAP.get(entityPlayer);
-            Object mapBase = HANDLE.get(attributeMap);
-
-            Object attributeInst = INSTANCE_METHOD.invoke(mapBase, CONVERTOR_METHOD.invoke(null, attribute));
-            if(attributeInst != null) INSTANCE_VALUE.setDouble(attributeInst, val);
-
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static Set<AttributeValueData> getAttributeValueData(UUID uuid) {
-        return getInstance().getCustomAttributeValues().getOrDefault(uuid, new HashSet<>());
-    }
-    public static AttributeValueData getValueData(Set<AttributeValueData> set, Attribute attribute) {
-        String key = attribute.getKey().getKey();
-        for(AttributeValueData data : set) {
-            if(data.getAttribute().getKey().getKey().equalsIgnoreCase(key)) return data;
-        }
-        return null;
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST)
-    private void refresh(EntityDamageEvent event) {
-        if(!(event.getEntity() instanceof Player player)) return;
-        Set<AttributeValueData> valueData = getAttributeValueData(player.getUniqueId());
-        if(valueData.isEmpty()) return;
-
-        for(AttributeValueData data : valueData) {
-            Attribute attribute = data.getAttribute();
-            AttributeInstance inst = player.getAttribute(attribute);
-            if(inst == null) continue;
-
-            double v = inst.getValue();
-
-            //setAttributeValue(player, attribute, v, AttributeValueData.AttributeOperation.NOTHING);
-            QuickUtils.syncLater(2, () -> setAttributeValue(player, attribute, v, AttributeValueData.AttributeOperation.SET));
-        }
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST)
-    private void refresh(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        Set<AttributeValueData> valueData = getAttributeValueData(player.getUniqueId());
-        if(valueData.isEmpty()) return;
-
-        for(AttributeValueData data : valueData) {
-            Attribute attribute = data.getAttribute();
-            AttributeInstance inst = player.getAttribute(attribute);
-            if(inst == null) continue;
-
-            double v = inst.getValue();
-
-            //setAttributeValue(player, attribute, v, AttributeValueData.AttributeOperation.NOTHING);
-            QuickUtils.syncLater(2, () -> setAttributeValue(player, attribute, v, AttributeValueData.AttributeOperation.SET));
-        }
-    }
-
-    public static double getAttributeValue(LivingEntity entity, Attribute attribute) {
+    public static double getBukkitAttributeValue(LivingEntity entity, Attribute attribute) {
         AttributeInstance instance = entity.getAttribute(attribute);
         return instance != null ? instance.getValue() : -1;
     }
@@ -348,23 +284,6 @@ public class AttributeManager implements Listener {
         }
         return null;
     }
-    public static NBTCompound getCompound(LivingEntity entity) {
-        if(!(entity instanceof Player player)) {
-            return new NBTEntity(entity);
-        } else if(player.isOnline()) return new NBTEntity(entity);
-
-        NBTFile file;
-        try {
-            String path = entity.getServer().getWorldContainer().getPath();
-            path = path.substring(0, path.length() - 1);
-
-            String defWorld = entity.getServer().getWorlds().get(0).getName();
-            file = new NBTFile(new File(path + defWorld + "/playerdata/" + player.getUniqueId() + ".dat"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return file;
-    }
     public static ReadWriteNBT getNBT(NBTCompound compound, Attribute attribute) {
         NBTCompoundList attributes = compound.getCompoundList("Attributes");
         ReadWriteNBT nbt = null;
@@ -380,25 +299,171 @@ public class AttributeManager implements Listener {
     }
 
 
-    public static void resetAllAttributes(LivingEntity entity) {
-        for(Attribute attribute : Attribute.values()) {
-            AttributeManager.setAttribute(entity, attribute, AttributeManager.getDefaultValue(entity, attribute));
+    /* Packet Attribute Manipulation */
+
+    private static @NotNull AttributeValueData createValueOverrideData(LivingEntity entity) {
+        UUID uuid = entity.getUniqueId();
+        if(getInstance().getValueOverrides().containsKey(uuid)) return getInstance().getValueOverrides().get(uuid);
+
+        AttributeValueData valueData = new AttributeValueData();
+        getInstance().getValueOverrides().put(uuid, valueData);
+        return valueData;
+    }
+
+    public static void addValueOverrideData(LivingEntity entity, Attribute attribute, double val) {
+        AttributeValueData valueData = getValueOverrideData(entity);
+        if(valueData == null) valueData = createValueOverrideData(entity);
+        valueData.addDataValuePair(attribute, val);
+
+        if(entity instanceof Player p) setInternalValue(p, attribute, val);
+    }
+    public static void removeValueOverrideData(LivingEntity entity, Attribute attribute) {
+        AttributeValueData valueData = getValueOverrideData(entity);
+        if(valueData == null) return;
+        valueData.removeDataValuePair(attribute);
+        if(entity instanceof Player p) resetToRealValue(p, attribute);
+    }
+    public static AttributeValueData getValueOverrideData(LivingEntity entity) {
+        return getInstance().getValueOverrides().getOrDefault(entity.getUniqueId(), null);
+    }
+
+    private static @NotNull AttributeValueData createValueModifyData(LivingEntity entity) {
+        UUID uuid = entity.getUniqueId();
+        if(getInstance().getValueModifiers().containsKey(uuid)) return getInstance().getValueModifiers().get(uuid);
+
+        AttributeValueData valueData = new AttributeValueData();
+        getInstance().getValueModifiers().put(uuid, valueData);
+        return valueData;
+    }
+
+    public static void addValueModifyData(LivingEntity entity, Attribute attribute, double val) {
+        AttributeValueData valueData = getValueModifyData(entity);
+        if(valueData == null) valueData = createValueModifyData(entity);
+        valueData.addDataValuePair(attribute, val);
+
+        if(entity instanceof Player p) {
+            double real = getRealValue(p, attribute);
+            if(real == -1) real = getBukkitAttributeValue(entity, attribute);
+            setInternalValue(p, attribute, real + val);
         }
     }
+    public static void removeValueModifyData(LivingEntity entity, Attribute attribute) {
+        AttributeValueData valueData = getValueModifyData(entity);
+        if(valueData == null) return;
+        valueData.removeDataValuePair(attribute);
+        if(entity instanceof Player p) resetToRealValue(p, attribute);
+    }
+    public static AttributeValueData getValueModifyData(LivingEntity entity) {
+        return getInstance().getValueModifiers().getOrDefault(entity.getUniqueId(), null);
+    }
+
+
+    // TODO add support for other entities ?
+    public static Object getAttributeInstance(Player player, Attribute attribute) {
+        Object o = MinecraftConnection.getHandle(player);
+
+        try {
+            return INSTANCE_METHOD.invoke(HANDLE.get(ATTRIBUTE_MAP.get(o)), CONVERTOR_METHOD.invoke(null, attribute));
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+        return null;
+    }
+    public static void setInternalValue(Player player, Attribute attribute, double val) {
+        if(player.isDead() || !player.isOnline() || INSTANCE_VALUE == null) return;
+
+        Object attributeInst = getAttributeInstance(player, attribute);
+        if(attributeInst == null) return;
+
+        try {
+            INSTANCE_VALUE.setDouble(attributeInst, Math.max(val, 0.0));
+            WrapperPlayServerUpdateAttributes updateAttributes = new WrapperPlayServerUpdateAttributes(player.getEntityId(), List.of());
+            QuickMC.getPacketEventsAPI().getPlayerManager().sendPacket(player, updateAttributes);
+
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    public static void resetToRealValue(Player player, Attribute attribute) {
+        if(player.isDead() || !player.isOnline() || INSTANCE_VALUE == null) return; // TODO log error
+
+        Object attributeInst = getAttributeInstance(player, attribute);
+        if(attributeInst == null) return;
+
+        try {
+            double realValue = (double) CALCULATE_METHOD.invoke(attributeInst);
+            INSTANCE_VALUE.setDouble(attributeInst, realValue);
+            WrapperPlayServerUpdateAttributes updateAttributes = new WrapperPlayServerUpdateAttributes(player.getEntityId(), List.of());
+            QuickMC.getPacketEventsAPI().getPlayerManager().sendPacket(player, updateAttributes);
+
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    public static double getRealValue(Player player, Attribute attribute) {
+        if(player.isDead() || !player.isOnline() || INSTANCE_VALUE == null) return -1;
+
+        Object attributeInst = getAttributeInstance(player, attribute);
+        if(attributeInst == null) return -1;
+
+        try {
+            return (double) CALCULATE_METHOD.invoke(attributeInst);
+
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+
+    /* Helper Methods */
+
+    public static void resetAllAttributes(LivingEntity entity) {
+        if(!(entity instanceof Player player)) return;
+        for(Attribute attribute : Attribute.values()) {
+            resetToRealValue(player, attribute);
+        }
+    }
+
     public static void clearAllAttributeModifiers(LivingEntity entity, String key) {
         for(Attribute attribute : Attribute.values()) {
             AttributeInstance inst = entity.getAttribute(attribute);
             if(inst == null) continue;
+
             List<AttributeModifier> modifiers = new ArrayList<>();
             for(AttributeModifier mod : inst.getModifiers()) {
                 if(key.isEmpty() || mod.getName().contains(key)) modifiers.add(mod);
             }
+
+            for(AttributeModifier modifier : modifiers) {
+                inst.removeModifier(modifier);
+            }
+        }
+    }
+    public static void clearAttributeModifier(LivingEntity entity, String key) {
+        for(Attribute attribute : Attribute.values()) {
+            AttributeInstance inst = entity.getAttribute(attribute);
+            if(inst == null) continue;
+
+            List<AttributeModifier> modifiers = new ArrayList<>();
+            for(AttributeModifier mod : inst.getModifiers()) {
+                if(key.isEmpty() || mod.getName().contains(key)) modifiers.add(mod);
+            }
+
             for(AttributeModifier modifier : modifiers) {
                 inst.removeModifier(modifier);
             }
         }
     }
 
+    private static WrapperPlayServerUpdateAttributes.PropertyModifier.Operation convertOperation(AttributeModifier.Operation operation) {
+        if(operation == AttributeModifier.Operation.ADD_NUMBER) return WrapperPlayServerUpdateAttributes.PropertyModifier.Operation.ADDITION;
+        if(operation == AttributeModifier.Operation.ADD_SCALAR) return WrapperPlayServerUpdateAttributes.PropertyModifier.Operation.MULTIPLY_BASE;
+        if(operation == AttributeModifier.Operation.MULTIPLY_SCALAR_1) return WrapperPlayServerUpdateAttributes.PropertyModifier.Operation.MULTIPLY_TOTAL;
+        return null;
+    }
 
     public static void healEntity(LivingEntity entity, double amount) {
         double sum = entity.getHealth() + amount;
@@ -406,7 +471,7 @@ public class AttributeManager implements Listener {
     }
     public static double getEntityMaxHealth(LivingEntity entity) {
         AttributeInstance instance = entity.getAttribute(Attribute.GENERIC_MAX_HEALTH);
-        return instance != null ? instance.getBaseValue() : 0;
+        return instance != null ? instance.getBaseValue() : -1;
     }
 
 }

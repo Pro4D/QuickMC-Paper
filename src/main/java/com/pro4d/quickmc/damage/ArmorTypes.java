@@ -21,6 +21,8 @@ public enum ArmorTypes {
 
     TURTLE(EnumSet.of(Material.TURTLE_HELMET)),
 
+    ELYTRA(EnumSet.of(Material.ELYTRA)),
+
     NAKED(EnumSet.noneOf(Material.class));
 
     private final EnumSet<Material> armorPieces;

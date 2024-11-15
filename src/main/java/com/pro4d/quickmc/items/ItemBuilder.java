@@ -1,6 +1,9 @@
 package com.pro4d.quickmc.items;
 
-import com.cryptomorin.xseries.SkullUtils;
+//import com.cryptomorin.xseries.SkullUtils;
+import com.cryptomorin.xseries.profiles.builder.XSkull;
+import com.cryptomorin.xseries.profiles.objects.ProfileInputType;
+import com.cryptomorin.xseries.profiles.objects.Profileable;
 import com.pro4d.quickmc.QuickUtils;
 import org.bukkit.Color;
 import org.bukkit.Material;
@@ -191,17 +194,19 @@ public class ItemBuilder {
 
     // TODO replace below 3 skull methods with PlayerProfile API
     public ItemBuilder skull(String identifier){
-        SkullUtils.applySkin(this.meta, identifier);
+        XSkull.of(this.meta).profile(Profileable.of(ProfileInputType.BASE64, identifier)).apply();
+        //XSkull.applySkin(this.meta, identifier);
         return this;
     }
 
     public ItemBuilder skull(OfflinePlayer identifier){
-        SkullUtils.applySkin(this.meta, identifier);
+        XSkull.of(this.meta).profile(Profileable.of(ProfileInputType.UUID, identifier.getUniqueId().toString())).apply();
+        //XSkull.applySkin(this.meta, identifier);
         return this;
     }
 
     public ItemBuilder skull(UUID identifier){
-        SkullUtils.applySkin(this.meta, identifier);
+        XSkull.of(this.meta).profile(Profileable.of(ProfileInputType.UUID, identifier.toString())).apply();
         return this;
     }
 

@@ -4,6 +4,7 @@ import com.comphenix.protocol.wrappers.WrappedDataValue;
 import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import com.google.common.collect.Lists;
 import com.pro4d.quickmc.util.packets.*;
+import io.github.retrooper.packetevents.util.SpigotReflectionUtil;
 import it.unimi.dsi.fastutil.ints.IntList;
 import lombok.Getter;
 import org.bukkit.Bukkit;

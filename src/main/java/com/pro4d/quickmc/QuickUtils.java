@@ -1,6 +1,8 @@
 package com.pro4d.quickmc;
 
 import com.cryptomorin.xseries.messages.ActionBar;
+import com.github.retrooper.packetevents.manager.player.PlayerManager;
+import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import de.themoep.minedown.MineDown;
 import me.clip.placeholderapi.PlaceholderAPI;
 import net.kyori.adventure.text.Component;
@@ -246,6 +248,45 @@ public final class QuickUtils {
         }
     }
 
+    public static String itemStackToBase64(ItemStack item) throws IllegalStateException {
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
+
+            dataOutput.writeObject(item);
+
+            // Serialize that array
+            dataOutput.close();
+            return Base64Coder.encodeLines(outputStream.toByteArray());
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to save item stacks.", e);
+        }
+    }
+
+
+    /**
+     * Gets an array of ItemStacks from Base64 string.
+     *
+     * <p />
+     *
+     * Base off of {@link #fromBase64(String)}.
+     *
+     * @param data Base64 string to convert to ItemStack array.
+     * @return ItemStack array created from the Base64 string.
+     */
+    public static ItemStack itemStackFromBase64(String data) throws IOException {
+        try {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(data));
+            BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
+            ItemStack item = (ItemStack) dataInput.readObject();
+
+            dataInput.close();
+            return item;
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Unable to decode class type.", e);
+        }
+    }
+
     public static Color hexToColor(String hexString) {
         String hex = hexString.replace("#", "")
                 .replace("&", "");
@@ -387,6 +428,36 @@ public final class QuickUtils {
 
     public static void broadcast(String msg) {
         Bukkit.getServer().broadcast(component(msg));
+    }
+
+    public static void broadcastPacket(PacketWrapper<?> packet) {
+        PlayerManager playerManager = QuickMC.getPacketEventsAPI().getPlayerManager();
+        for(Player player : Bukkit.getOnlinePlayers()) {
+            playerManager.sendPacket(player, packet);
+        }
+    }
+
+    public static void worldBroadcastPacket(World world, PacketWrapper<?> packet) {
+        PlayerManager playerManager = QuickMC.getPacketEventsAPI().getPlayerManager();
+        for(Player player : world.getPlayers()) {
+            playerManager.sendPacket(player, packet);
+        }
+    }
+
+    public static void sendPacket(Player player, PacketWrapper<?> packet) {
+        QuickMC.getPacketEventsAPI().getPlayerManager().sendPacket(player, packet);
+    }
+
+    public static Enchantment getEnchantment(String s) {
+        Enchantment enchantment = Enchantment.getByName(s.toUpperCase());
+        if(enchantment != null) return enchantment;
+
+        s = s.toLowerCase().replaceAll("[ _-]", "");
+        for(Enchantment next : Registry.ENCHANTMENT) {
+            String key = next.getKey().getKey().toLowerCase().replaceAll("[ _-]", "");
+            if(key.contains(s)) return next;
+        }
+        return enchantmentFromEnglishToMinecraft(s);
     }
 
     public static BukkitTask sync(Runnable runnable) {

@@ -8,7 +8,7 @@ import org.bukkit.entity.EntityType;
 
 import java.util.UUID;
 
-public class SimpleTextDisplay extends SimpleDisplay{
+public class SimpleTextDisplay extends SimpleDisplay {
 
     public static final WrappedDataWatcher.Serializer COMPONENT_SERIALIZER = WrappedDataWatcher.Registry.getChatComponentSerializer(false);
 

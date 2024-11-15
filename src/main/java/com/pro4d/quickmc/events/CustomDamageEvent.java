@@ -22,12 +22,13 @@ public class CustomDamageEvent extends EntityDamageByEntityEvent implements Canc
     private LivingEntity target;
     private Entity source;
     private double damage, finalDmg;
-    private boolean applyIFrames, applyKnockback, isHearts;
+    private boolean applyKnockback, isHearts;
+    private int iFrames;
 
     private final String causeName;
     private final List<ExpressionTransformer> transformersList;
 
-    public CustomDamageEvent(LivingEntity target, Entity source, double damage, String causeName, List<ExpressionTransformer> transformers, boolean applyIFrames, boolean applyKB, boolean isHearts) {
+    public CustomDamageEvent(LivingEntity target, Entity source, double damage, String causeName, List<ExpressionTransformer> transformers, int iFrames, boolean applyKB, boolean isHearts) {
         super(target, source, DamageCause.CUSTOM, damage);
         this.target = target;
         this.source = source;
@@ -36,7 +37,7 @@ public class CustomDamageEvent extends EntityDamageByEntityEvent implements Canc
         this.causeName = causeName;
         this.transformersList = transformers;
 
-        this.applyIFrames = applyIFrames;
+        this.iFrames = iFrames;
         this.applyKnockback = applyKB;
         this.isHearts = isHearts;
 
