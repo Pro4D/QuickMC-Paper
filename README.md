@@ -41,7 +41,7 @@ Lastly, use the maven-shade plugin to shade QuickMC into your project. It is rec
 <plugin>
     <groupId>org.apache.maven.plugins</groupId>
     <artifactId>maven-shade-plugin</artifactId>
-    <version>3.4.1</version>
+    <version>3.6.0</version>
     <configuration>
         <relocations>
             <relocation>
@@ -63,10 +63,21 @@ Lastly, use the maven-shade plugin to shade QuickMC into your project. It is rec
 
 ## Usage
 
-Lastly, in order to utilize most of this library's methods, you must initialize the library, passing in an instance of your main plugin.
+The library must be injected into the plugin onLoad, initialized onEnable, and disabled on onDisable
+
 ```java
+@Override
+public void onLoad() {
+ QuickMC.injectOnLoad(this);
+}
+
 @Override
 public void onEnable() {
     QuickMC.init(this);
+}
+
+@Override
+public void onDisable() {
+ QuickMC.executeOnDisable();
 }
 ```
