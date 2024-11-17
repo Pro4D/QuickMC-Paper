@@ -37,13 +37,16 @@ public final class QuickMC {
     @Getter private static JavaPlugin sourcePlugin;
     @Getter private static PacketEventsAPI<?> packetEventsAPI;
 
-    public static boolean PAPI_LOADED;
+    public static boolean PAPI_LOADED, PACKET_EVENTS_LOADED;
 
     //public static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
 
     public static void injectOnLoad(JavaPlugin plugin) {
         // load the command api
         CommandAPI.onLoad(new CommandAPIBukkitConfig(plugin).verboseOutput(false).silentLogs(true));
+
+        PACKET_EVENTS_LOADED = Bukkit.getPluginManager().getPlugin("packetevents") != null;
+        if(!PACKET_EVENTS_LOADED) throw new IllegalStateException("Can not find PacketEvents! This plugin is required");
 
         // load PacketEvents
         PacketEvents.setAPI(SpigotPacketEventsBuilder.build(plugin));
@@ -58,6 +61,7 @@ public final class QuickMC {
         sourcePlugin = plugin;
 
         //if(REGISTERED.getAndSet(true)) throw new IllegalStateException("QuickLib is already registered");
+        if(!PACKET_EVENTS_LOADED) throw new IllegalStateException("Can not find PacketEvents! This plugin is required");
 
         wrappedVisuals = new ArrayList<>();
         glowingEntities = new GlowingEntities(plugin);
